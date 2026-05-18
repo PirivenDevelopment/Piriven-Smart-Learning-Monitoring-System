@@ -178,7 +178,7 @@ with tab2:
             return "background-color: #fee2e2; color: #991b1b; font-weight: bold;"
         return ""
         
-    styled_df = df_table_view.style.applymap(color_status, subset=["Status"])
+    styled_df = df_table_view.map(color_status, subset=["Status"])
     st.dataframe(styled_df, use_container_width=True)
 
 # Map Cascading View Setup (Dropdown එකෙන් තෝරන පිරිවෙනට සිතියම සජීවීව ලින්ක් වීම)
