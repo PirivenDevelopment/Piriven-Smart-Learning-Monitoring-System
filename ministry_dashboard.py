@@ -11,7 +11,6 @@ from urllib.parse import urlparse, parse_qs
 # ⚠️ Firebase API URL
 FIREBASE_URL = "https://pirivensmartboardmonitoring-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
-# ලංකාවේ නිල දිස්ත්‍රික්ක 25
 SRI_LANKA_DISTRICTS = [
     "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", 
     "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", 
@@ -47,15 +46,13 @@ st.markdown("""
     }
     .stTabs [aria-selected="true"] { background-color: #1e293b !important; color: white !important; }
     
-    /* 💡 [විසඳුම] කළු පසුබිමේ වුවද ඉලක්කම් ඉතාමත් පැහැදිලිව සුදු/ලා පැහැයෙන් (High Contrast) පෙන්වීමට */
     div[data-testid="stMetricValue"] { 
         color: #f8fafc !important; 
         font-size: 32px; 
         font-weight: bold;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* අකුරු තවත් තදින් පෙනීමට */
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     }
     
-    /* 💡 Metric එකේ ඉහළින් ඇති කුඩා අකුරු (Labels) සුදු පැහැ ගැන්වීම */
     div[data-testid="stMetricLabel"] p {
         color: #cbd5e1 !important;
         font-weight: 600;
@@ -65,7 +62,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# [Compact Header]
 st.markdown("<h2 style='text-align: center; color: #1a365d; margin-top: -30px; margin-bottom: 0px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #4a5568; font-size: 16px; font-weight: bold; margin-top: 0px; margin-bottom: -10px;'>Central Control, Analytics & Monitoring Dashboard</p>", unsafe_allow_html=True)
 st.write("---")
@@ -118,7 +114,27 @@ if df_usage is None and cloud_excel_data:
 if df_usage is None:
     df_usage = pd.DataFrame({"Census No": ["0542"], "Piriven Name": ["Sample Pirivena"], "District": ["Colombo"], "Zone": ["Central"], "Status": ["Offline"], "Latitude": [6.9271], "Longitude": [79.8612], "Monthly Usage (Hours)": [0]})
 
-live_census_list = [str(k).strip() for k in live_boards_data.keys()]
+# 💡 [විසඳුම] ඩිවයිස් එකක් සජීවීද නැද්ද කියා කාල සීමාව අනුව (Heartbeat Timeout) තීරණය කරන ආරක්ෂිත පියවර
+def is_device_actually_active(last_ping_str):
+    try:
+        if not last_ping_str: return False
+        last_ping_time = datetime.datetime.strptime(last_ping_str, "%Y-%m-%d %H:%M:%S")
+        time_difference = datetime.datetime.now() - last_ping_time
+        # අවසන් සංඥාව ඇවිත් විනාඩි 10කට වඩා වැඩි නම් එය Offline (අක්‍රිය) ලෙස සැලකීම
+        if time_difference.total_seconds() < 600: 
+            return True
+    except: pass
+    return False
+
+# ලයිස්තුවේ පෙන්වීමට අවසාන තත්ත්වය (Status) සැකසීම
+live_census_list = []
+for c_id, devices in live_boards_data.items():
+    if isinstance(devices, dict):
+        for d_id, d_info in devices.items():
+            if isinstance(d_info, dict) and is_device_actually_active(d_info.get("last_ping")):
+                live_census_list.append(str(c_id).strip())
+                break
+
 df_usage["Status"] = ["Active" if str(row["Census No"]).strip() in live_census_list else "Offline" for i, row in df_usage.iterrows()]
 census_to_name = dict(zip(df_usage["Census No"].astype(str), df_usage["Piriven Name"]))
 
@@ -141,11 +157,14 @@ with tab2:
     c_left, c_right = st.columns(2)
     c_left.metric("Registered Boards", len(df_filtered))
     
+    # 💡 [විසඳුම] සැබෑ ලෙසම දැනට ක්‍රියාත්මක වන උපාංග පමණක් මෙට්‍රික් එකට එකතු කිරීම
     total_active_devices = 0
     filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
     for c_no in filtered_census_nos:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
-            total_active_devices += len(live_boards_data[c_no])
+            for dev_id, dev_info in live_boards_data[c_no].items():
+                if isinstance(dev_info, dict) and is_device_actually_active(dev_info.get("last_ping")):
+                    total_active_devices += 1
             
     c_right.metric("Total Active Devices Now", total_active_devices)
     st.write("---")
@@ -209,19 +228,23 @@ with tab1:
         
         for i, r in df_filtered.iterrows():
             c_no = str(r["Census No"]).strip()
-            if c_no in live_boards_data:
-                devices = live_boards_data[c_no]
-                if isinstance(devices, dict):
-                    for dev_id, dev_info in devices.items():
-                        if not isinstance(dev_info, dict): continue
+            is_any_device_live = False
+            
+            if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
+                for dev_id, dev_info in live_boards_data[c_no].items():
+                    if not isinstance(dev_info, dict): continue
+                    
+                    # 💡 [විසඳුම] සිතියම මත ලකුණු කරන්නේ ඇත්තටම සජීවී උපාංග පමණි
+                    if is_device_actually_active(dev_info.get("last_ping")):
+                        is_any_device_live = True
                         d_type = dev_info.get("device_type", "Smart Board")
                         l_lat = dev_info.get("live_lat", r["Latitude"])
                         l_lon = dev_info.get("live_lon", r["Longitude"])
                         
-                        if l_lat == 7.8731 or l_lat == 0.0 or l_lat == 7.873100000000001:
+                        if c_no == "430001" or l_lat == 7.8731 or l_lat == 0.0 or l_lat == 7.873100000000001:
                             l_lat = r["Latitude"]
                             l_lon = r["Longitude"]
-                            l_city = "Ministry/Registry Zone"
+                            l_city = "Ministry Office (Battaramulla)"
                         else:
                             l_city = dev_info.get("live_city", "Unknown")
                         
@@ -235,9 +258,9 @@ with tab1:
                                 popup=f"🏛️ <b>{r['Piriven Name']}</b><br>📟 Device: {d_type}<br>📍 Location: {l_city}<br>🟢 Status: Active Now",
                                 icon=folium.Icon(color=icon_color, icon="desktop" if d_type != "Laptop" else "laptop")
                             ).add_to(m)
-                continue
-
-            if r["Latitude"] != 0:
+            
+            # 💡 [විසඳුම] උපාංගය සැබෑ ලෙසම Offline නම් පමණක් රතු මාකර් එක පෙන්වීම
+            if not is_any_device_live and r["Latitude"] != 0:
                 folium.Marker(
                     [r["Latitude"], r["Longitude"]], 
                     popup=f"🏛️ {r['Piriven Name']}<br>🔴 Status: Offline", 
@@ -264,87 +287,48 @@ with tab1:
         if st.button("📢 PUSH LIVE NOTIFICATION"):
             if ann_t and ann_b: requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b}); st.success("✅ Message Pushed Successfully!")
 
-# 💡 [නව සංශෝධනය] Support Tickets කළමනාකරණය සහ CSV බාගත කිරීමේ ටැබ් එක
 with tab3:
     st.subheader("🛠️ Technical Support Tickets Control Panel")
-    
-    # 💡 [විසඳුම] බොත්තම ඔබද්දී සර්වර් එක අප්ඩේට් කරන ස්මාර්ට් ශ්‍රිතය (Callback Function)
     def resolve_ticket(ticket_id):
         try:
             res = requests.patch(f"{FIREBASE_URL}support_tickets/{ticket_id}.json", json={"status": "Solved"}, timeout=4)
-            if res.status_code == 200:
-                st.toast("🟢 ටිකට් එක සාර්ථකව යාවත්කාලීන වුණා!", icon="✅")
-            else:
-                st.sidebar.error("❌ Cloud Update Failed.")
-        except:
-            st.sidebar.error("❌ Connection Error.")
+            if res.status_code == 200: st.toast("🟢 ටිකට් එක සාර්ථකව යාවත්කාලීන වුණා!", icon="✅")
+        except: st.sidebar.error("❌ Connection Error.")
 
     try:
         res_t = requests.get(f"{FIREBASE_URL}support_tickets.json", timeout=4)
         if res_t.status_code == 200 and res_t.json():
             t_data = res_t.json()
             t_list = []
-            
             for tid, det in t_data.items():
                 c_no = str(det.get("census_no", "")).strip()
                 p_name = census_to_name.get(c_no, f"Unknown ({c_no})")
-                
-                if selected_piriven != "All Piriven" and p_name != selected_piriven: 
-                    continue
-                    
+                if selected_piriven != "All Piriven" and p_name != selected_piriven: continue
                 t_list.append({
-                    "Ticket ID": tid,
-                    "Piriven": p_name, 
-                    "Device Serial No": det.get("device_serial", "N/A"),
-                    "Issue Category": det.get("issue_type"), 
-                    "Description": det.get("description"), 
-                    "Status": det.get("status", "Pending")
+                    "Ticket ID": tid, "Piriven": p_name, "Device Serial No": det.get("device_serial", "N/A"),
+                    "Issue Category": det.get("issue_type"), "Description": det.get("description"), "Status": det.get("status", "Pending")
                 })
             
             if t_list:
                 df_tickets = pd.DataFrame(t_list)
-                
-                # 📥 ජොබ් ලිස්ට් එක බාගත කිරීම
                 csv_data = df_tickets.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 DOWNLOAD ALL TICKETS (JOB LIST) AS CSV",
-                    data=csv_data,
-                    file_name=f"Piriven_Support_Jobs_{datetime.date.today()}.csv",
-                    mime="text/csv"
-                )
+                st.download_button(label="📥 DOWNLOAD ALL TICKETS (JOB LIST) AS CSV", data=csv_data, file_name=f"Piriven_Support_Jobs_{datetime.date.today()}.csv", mime="text/csv")
                 st.write("---")
                 
-                # 📥 ටිකට් එකින් එක පෙන්වීම සහ විසඳීම
                 for index, row in df_tickets.iterrows():
                     col_t1, col_t2, col_t3 = st.columns([3, 1, 1])
-                    
-                    with col_t1:
-                        st.markdown(f"🏛️ **{row['Piriven']}** ({row['Issue Category']})<br>📝 *{row['Description']}*<br><small>Serial: {row['Device Serial No']}</small>", unsafe_allow_html=True)
-                    
+                    with col_t1: st.markdown(f"🏛️ **{row['Piriven']}** ({row['Issue Category']})<br>📝 *{row['Description']}*<br><small>Serial: {row['Device Serial No']}</small>", unsafe_allow_html=True)
                     with col_t2:
-                        if row['Status'] == "Pending":
-                            st.markdown("🔴 <span style='color:red;font-weight:bold;'>Pending</span>", unsafe_allow_html=True)
-                        else:
-                            st.markdown("🟢 <span style='color:green;font-weight:bold;'>Solved</span>", unsafe_allow_html=True)
-                    
+                        if row['Status'] == "Pending": st.markdown("🔴 <span style='color:red;font-weight:bold;'>Pending</span>", unsafe_allow_html=True)
+                        else: st.markdown("🟢 <span style='color:green;font-weight:bold;'>Solved</span>", unsafe_allow_html=True)
                     with col_t3:
-                        if row['Status'] == "Pending":
-                            # 💡 [විසඳුම] on_click සහ args භාවිතයෙන් ලූපයේ ගැටීම සම්පූර්ණයෙන්ම නැති කිරීම
-                            st.button(
-                                "Mark as Solved", 
-                                key=f"btn_{row['Ticket ID']}_{index}", 
-                                on_click=resolve_ticket, 
-                                args=(row['Ticket ID'],)
-                            )
-                        else:
-                            st.write("🔒 Complete")
+                        if row['Status'] == "Pending": st.button("Mark as Solved", key=f"btn_{row['Ticket ID']}_{index}", on_click=resolve_ticket, args=(row['Ticket ID'],))
+                        else: st.write("🔒 Complete")
                     st.write("<hr style='margin: 10px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
-            else:
-                st.info("No tickets reported for the selected filter.")
-        else:
-            st.info("No tickets reported in the system.")
-    except Exception as ex: 
-        st.error(f"Cloud Error: {ex}")
+            else: st.info("No tickets reported for the selected filter.")
+        else: st.info("No tickets reported in the system.")
+    except Exception as ex: st.error(f"Cloud Error: {ex}")
+
 # Footer Section
 st.write("---")
 cur_year = datetime.datetime.now().year
