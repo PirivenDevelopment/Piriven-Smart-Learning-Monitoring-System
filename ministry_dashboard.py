@@ -95,7 +95,7 @@ if uploaded_file:
         df_raw["Longitude"] = df_raw["Longitude"].fillna(0.0)
         df_raw["Monthly Usage (Hours)"] = df_raw["Monthly Usage (Hours)"].fillna(0)
 
-        # 💡 [විසඳුම] Excel එක සකස් කිරීමේදී වැරදීමකින් Latitude සහ Longitude මාරු වී තිබුණොත් ඔටෝම නිවැරදි කිරීම
+        # 💡 Excel එක සකස් කිරීමේදී වැරදීමකින් Latitude සහ Longitude මාරු වී තිබුණොත් ඔටෝම නිවැරදි කිරීම
         for index, row in df_raw.iterrows():
             lat = float(row.get("Latitude", 0.0))
             lon = float(row.get("Longitude", 0.0))
@@ -139,7 +139,7 @@ live_census_list = []
 for c_id, devices in live_boards_data.items():
     if isinstance(devices, dict):
         for d_id, d_info in devices.items():
-            if isinstance(d_info, dict) and is_device_actually_active(d_info.get("last_ping")):
+            if d_id != "attendance" and isinstance(d_info, dict) and is_device_actually_active(d_info.get("last_ping")):
                 live_census_list.append(str(c_id).strip())
                 break
 
@@ -274,10 +274,10 @@ with tab1:
                         elif d_type == "Laptop": icon_color = "blue"
                         else: icon_color = "orange"
                         
-                        # 💡 [නව විශේෂාංගය] සර්වර් එකෙන් එන උසස් දෘඪාංග විස්තර කියවීම
+                        # சර්වර් එකෙන් එන උසස් දෘඪාංග විස්තර කියවීම
                         adv_spec = dev_info.get("spec_advanced", {})
                         
-                        # 💡 [නව විශේෂාංගය] Popup එක තුළ උසස් දෘඪාංග විස්තර වගුවක් ලෙස හැඩගැන්වීම
+                        # Popup එක තුළ උසස් දෘඪාංග විස්තර වගුවක් ලෙස හැඩගැන්වීම
                         popup_html = f"""
                         <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
                             <h3 style='margin: 0 0 5px 0; color: #1e293b;'>🏛️ {r['Piriven Name']}</h3>
@@ -332,10 +332,14 @@ with tab1:
 
 with tab3:
     st.subheader("🛠️ Technical Support Tickets Control Panel")
+    
+    # 💡 [විසඳුම] බොත්තම ඔබද්දී සැනින් සර්වර් එක යාවත්කාලීන කර තිරය ස්වයංක්‍රීයව රීෆ්‍රෙෂ් (Rerun) කරවන ස්මාර්ට් ශ්‍රිතය
     def resolve_ticket(ticket_id):
         try:
             res = requests.patch(f"{FIREBASE_URL}support_tickets/{ticket_id}.json", json={"status": "Solved"}, timeout=4)
-            if res.status_code == 200: st.toast("🟢 ටිකට් එක සාර්ථකව යාවත්කාලීන වුණා!", icon="✅")
+            if res.status_code == 200: 
+                st.toast("🟢 ටිකට් එක සාර්ථකව යාවත්කාලීන වුණා!", icon="✅")
+                st.rerun() # 🚀 [සංශෝධනය] දත්ත සැනින් පිරිවෙන් ඇප් එකට සන්නිවේදනය වීමට තිරය රීෆ්‍රෙෂ් කිරීම
         except: st.sidebar.error("❌ Connection Error.")
 
     try:
