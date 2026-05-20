@@ -206,7 +206,7 @@ with tab2:
         if res_apps.status_code == 200 and res_apps.json():
             apps_cloud_data = res_apps.json()
             for c_no in filtered_census_nos:
-                if c_no in apps_cloud_data && isinstance(apps_cloud_data[c_no], dict):
+                if c_no in apps_cloud_data and isinstance(apps_cloud_data[c_no], dict):
                     for app_name, minutes in apps_cloud_data[c_no].items():
                         if app_name not in app_hours_dict: app_hours_dict[app_name] = 0.0
                         app_hours_dict[app_name] += round(minutes / 60.0, 2)
