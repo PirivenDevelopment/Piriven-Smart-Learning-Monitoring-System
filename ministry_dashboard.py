@@ -95,6 +95,14 @@ if uploaded_file:
         df_raw["Longitude"] = df_raw["Longitude"].fillna(0.0)
         df_raw["Monthly Usage (Hours)"] = df_raw["Monthly Usage (Hours)"].fillna(0)
 
+        # 💡 [විසඳුම] Excel එක සකස් කිරීමේදී වැරදීමකින් Latitude සහ Longitude මාරු වී තිබුණොත් ඔටෝම නිවැරදි කිරීම
+        for index, row in df_raw.iterrows():
+            lat = float(row.get("Latitude", 0.0))
+            lon = float(row.get("Longitude", 0.0))
+            if lat > 70.0 and lon < 15.0:
+                df_raw.at[index, "Latitude"] = lon
+                df_raw.at[index, "Longitude"] = lat
+
         df_temp = pd.DataFrame()
         df_temp["Census No"], df_temp["Piriven Name"] = df_raw["Census No"], df_raw["Piriven Name"]
         df_temp["District"] = [([d for d in SRI_LANKA_DISTRICTS if d.lower() == x.lower()] + ["Other/Unclassified"])[0] for x in df_raw["District"]]
@@ -115,13 +123,12 @@ if df_usage is None and cloud_excel_data:
 if df_usage is None:
     df_usage = pd.DataFrame({"Census No": ["0542"], "Piriven Name": ["Sample Pirivena"], "District": ["Colombo"], "Zone": ["Central"], "Status": ["Offline"], "Latitude": [6.9271], "Longitude": [79.8612], "Monthly Usage (Hours)": [0]})
 
-# 💡 [විසඳුම] ඩිවයිස් එකක් සජීවීද නැද්ද කියා කාල සීමාව අනුව (Heartbeat Timeout) තීරණය කරන ආරක්ෂිත පියවර
+# 💡 ඩිවයිස් එකක් සජීවීද නැද්ද කියා කාල සීමාව අනුව (Heartbeat Timeout) තීරණය කරන ආරක්ෂිත පියවර
 def is_device_actually_active(last_ping_str):
     try:
         if not last_ping_str: return False
         last_ping_time = datetime.datetime.strptime(last_ping_str, "%Y-%m-%d %H:%M:%S")
         time_difference = datetime.datetime.now() - last_ping_time
-        # අවසන් සංඥාව ඇවිත් විනාඩි 10 කට වඩා වැඩි නම් එය Offline (අක්‍රිය) ලෙස සැලකීම
         if time_difference.total_seconds() < 600: 
             return True
     except: pass
@@ -155,10 +162,9 @@ tab1, tab2, tab3 = st.tabs(["🗺️ Live Map & Remote Control", "📊 Analytics
 
 with tab2:
     st.subheader("📊 Performance Analytics")
-    c_left, c_middle, c_right = st.columns(3) # 💡 [විසඳුම] 3 Columns මට්ටමට Layout එක සකස් කිරීම
+    c_left, c_middle, c_right = st.columns(3) 
     c_left.metric("Registered Boards", len(df_filtered))
     
-    # 💡 [විසඳුම] සැබෑ ලෙසම දැනට සක්‍රිය උපාංග සහ AI මඟින් හඳුනාගත් මුළු ශිෂ්‍ය සංඛ්‍යාව ගණනය කිරීම
     total_active_devices = 0
     total_live_students = 0
     filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
@@ -167,18 +173,17 @@ with tab2:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
             # 1. Active Devices ගණන සෙවීම
             for dev_id, dev_info in live_boards_data[c_no].items():
-                if isinstance(dev_info, dict) and is_device_actually_active(dev_info.get("last_ping")):
+                if dev_id != "attendance" and isinstance(dev_info, dict) and is_device_actually_active(dev_info.get("last_ping")):
                     total_active_devices += 1
             
             # 2. AI Attendance දත්ත තිබේ නම් ශිෂ්‍ය එකතුව ලබා ගැනීම
             if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                 att_info = live_boards_data[c_no]["attendance"]
-                # අවසන් වරට කැමරාව ක්‍රියාත්මක වී විනාඩි 20කට වඩා පැරණි නොවේ නම් පමණක් සිසුන් සංඛ්‍යාව එකතු කිරීම
                 if is_device_actually_active(att_info.get("last_captured")):
                     total_live_students += int(att_info.get("live_student_count", 0))
             
     c_middle.metric("Total Active Devices Now", total_active_devices)
-    c_right.metric("👨‍🎓 Total Live Students Learning Now", total_live_students) # 💡 [නව විශේෂාංගය]
+    c_right.metric("👨‍🎓 Total Live Students Learning Now", total_live_students) 
     st.write("---")
     
     display_name = "All Island" if selected_piriven == "All Piriven" else selected_piriven
@@ -243,7 +248,6 @@ with tab1:
             is_any_device_live = False
             
             if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
-                # AI ශිෂ්‍ය සංඛ්‍යාව සිතියම් පොප්අප් එක සඳහා කියවා ගැනීම
                 live_stu_popup = 0
                 if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                     att_info = live_boards_data[c_no]["attendance"]
@@ -253,14 +257,12 @@ with tab1:
                 for dev_id, dev_info in live_boards_data[c_no].items():
                     if dev_id == "attendance" or not isinstance(dev_info, dict): continue
                     
-                    # 💡 [විසඳුම] සිතියම මත ලකුණු කරන්නේ ඇත්තටම සජීවීව පවතින උපාංග පමණි
                     if is_device_actually_active(dev_info.get("last_ping")):
                         is_any_device_live = True
                         d_type = dev_info.get("device_type", "Smart Board")
                         l_lat = dev_info.get("live_lat", r["Latitude"])
                         l_lon = dev_info.get("live_lon", r["Longitude"])
                         
-                        # ආණමඩුව හෝ වැරදි IP පිහිටීම් මඟහැර බත්තරමුල්ල නිවැරදි ස්ථානය ලබා ගැනීම
                         if c_no == "430001" or l_lat == 7.8731 or l_lat == 0.0 or l_lat == 7.873100000000001:
                             l_lat = r["Latitude"]
                             l_lon = r["Longitude"]
@@ -272,14 +274,35 @@ with tab1:
                         elif d_type == "Laptop": icon_color = "blue"
                         else: icon_color = "orange"
                         
+                        # 💡 [නව විශේෂාංගය] සර්වර් එකෙන් එන උසස් දෘඪාංග විස්තර කියවීම
+                        adv_spec = dev_info.get("spec_advanced", {})
+                        
+                        # 💡 [නව විශේෂාංගය] Popup එක තුළ උසස් දෘඪාංග විස්තර වගුවක් ලෙස හැඩගැන්වීම
+                        popup_html = f"""
+                        <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
+                            <h3 style='margin: 0 0 5px 0; color: #1e293b;'>🏛️ {r['Piriven Name']}</h3>
+                            <span style='background-color: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-weight: bold;'>🟢 Active Now</span><br>
+                            <p style='margin: 8px 0 4px 0;'>📟 <b>Device Type:</b> {d_type} (Serial: {dev_id})</p>
+                            <p style='margin: 0 0 8px 0;'>👨‍🎓 <b>Active Students Now:</b> <span style='color: #2563eb; font-weight: bold;'>{live_stu_popup}</span></p>
+                            
+                            <table style='width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 11px;'>
+                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Brand / Model</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('brand', 'N/A')} - {adv_spec.get('model', 'N/A')}</td></tr>
+                                <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Chipset</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('chipset', 'N/A')}</td></tr>
+                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Processor</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('processor', 'N/A')}</td></tr>
+                                <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Frequency / L3 Cache</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('frequency', 'N/A')} / {adv_spec.get('cache', 'N/A')}</td></tr>
+                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>RAM / Storage</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('ram', 'N/A')} / {adv_spec.get('harddisk', 'N/A')}</td></tr>
+                                <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>OS Version</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('os', 'N/A')}</td></tr>
+                            </table>
+                        </div>
+                        """
+                        
                         if l_lat != 0.0 and l_lon != 0.0:
                             folium.Marker(
                                 [l_lat, l_lon],
-                                popup=f"🏛️ <b>{r['Piriven Name']}</b><br>📟 Device: {d_type}<br>📍 Location: {l_city}<br>👨‍🎓 Active Students: {live_stu_popup}<br>🟢 Status: Active Now",
+                                popup=popup_html,
                                 icon=folium.Icon(color=icon_color, icon="desktop" if d_type != "Laptop" else "laptop")
                             ).add_to(m)
             
-            # 💡 [විසඳුම] උපාංගය සැබෑ ලෙසම Offline නම් පමණක් රතු මාකර් එක සිතියම මත පෙන්වීම
             if not is_any_device_live and r["Latitude"] != 0:
                 folium.Marker(
                     [r["Latitude"], r["Longitude"]], 
