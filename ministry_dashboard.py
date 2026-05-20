@@ -11,6 +11,7 @@ from urllib.parse import urlparse, parse_qs
 # ⚠️ Firebase API URL
 FIREBASE_URL = "https://pirivensmartboardmonitoring-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
+# ලංකාවේ නිල දිස්ත්‍රික්ක 25
 SRI_LANKA_DISTRICTS = [
     "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", 
     "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", 
@@ -141,6 +142,7 @@ pir_list = ["All Piriven"] + sorted(df_step1["Piriven Name"].unique().tolist())
 selected_piriven = st.sidebar.selectbox("Select Piriven Name:", pir_list)
 df_filtered = df_step1[df_step1["Piriven Name"] == selected_piriven] if selected_piriven != "All Piriven" else df_step1.copy()
 
+# Tabs Layout
 tab1, tab2, tab3 = st.tabs(["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets & Live Chat"])
 
 with tab2:
@@ -154,7 +156,7 @@ with tab2:
     
     for c_no in filtered_census_nos:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
-            # 💡 [විසඳුම] Multi-Device Fix: හැම ඩිවයිස් එකක්ම වෙන වෙනම ගණන් ගැනීම
+            # Multi-Device Fix: හැම ඩිවයිස් එකක්ම වෙන වෙනම ගණන් ගැනීම
             for dev_id, dev_info in live_boards_data[c_no].items():
                 if dev_id != "attendance" and isinstance(dev_info, dict) and is_device_actually_active(dev_info.get("last_ping")):
                     total_active_devices += 1
@@ -185,6 +187,28 @@ with tab2:
     col_sw1, col_sw2 = st.columns(2)
     with col_sw1: st.bar_chart(software_chart_data.set_index("Software Application"))
     with col_sw2: st.dataframe(software_chart_data, use_container_width=True)
+    
+    st.write("---")
+    st.markdown("**Overall Board Runtime Log (Hours)**")
+    st.bar_chart(df_filtered.set_index("Piriven Name")["Monthly Usage (Hours)"])
+    
+    st.write("---")
+    st.markdown("### 📋 Device Registry & Quick Map Link")
+    styled_df = df_filtered.drop(columns=["Latitude", "Longitude"], errors="ignore").style.map(
+        lambda v: "background-color: #d1fae5; color: #065f46; font-weight: bold;" if v == "Active" else ("background-color: #fee2e2; color: #991b1b; font-weight: bold;" if v == "Offline" else ""),
+        subset=["Status"]
+    )
+    st.dataframe(styled_df, use_container_width=True)
+
+# 💡 [විසඳුම] NameError මඟහැරීමට සිතියම සඳහා මධ්‍ය ලක්ෂ්‍යය සහ Zoom මට්ටම කල්තියා නිර්මාණය කිරීම
+map_center = [7.8731, 80.7718]
+map_zoom = 8
+
+if selected_piriven != "All Piriven" and not df_filtered.empty:
+    first_row = df_filtered.iloc[0]
+    if float(first_row.get("Latitude", 0.0)) != 0.0:
+        map_center = [float(first_row["Latitude"]), float(first_row["Longitude"])]
+        map_zoom = 14
 
 with tab1:
     col_map, col_ctrl = st.columns([3, 2])
@@ -203,7 +227,7 @@ with tab1:
                     if is_device_actually_active(att_info.get("last_captured")):
                         live_stu_popup = att_info.get("live_student_count", 0)
 
-                # 💡 [විසඳුම] Multi-Device Fix: ලැප්ටොප් සහ ස්මාර්ට්බෝඩ් දෙකම තිබේ නම් දෙකම වෙන වෙනම සිතියමේ අඳියි
+                # Multi-Device Fix: ලැප්ටොප් සහ ස්මාර්ට්බෝඩ් දෙකම තිබේ නම් දෙකම වෙන වෙනම සිතියමේ අඳියි
                 for dev_id, dev_info in live_boards_data[c_no].items():
                     if dev_id == "attendance" or not isinstance(dev_info, dict): continue
                     
@@ -223,8 +247,9 @@ with tab1:
                             📟 <b>Type:</b> {d_type} (Serial: {dev_id})<br>
                             🟢 <b>Status:</b> Active Now | 👨‍🎓 <b>Students:</b> {live_stu_popup}<br>
                             <table style='width:100%; border-collapse:collapse; margin-top:5px;'>
-                                <tr style='background:#f1f5f9;'><td><b>Spec:</b></td><td>{adv_spec.get('processor','N/A')} | {adv_spec.get('ram','N/A')}</td></tr>
-                                <tr><td><b>Disk/OS:</b></td><td>{adv_spec.get('harddisk','N/A')} | {adv_spec.get('os','N/A')}</td></tr>
+                                <tr style='background:#f1f5f9;'><td><b>Processor:</b></td><td>{adv_spec.get('processor','N/A')}</td></tr>
+                                <tr><td><b>RAM / Disk:</b></td><td>{adv_spec.get('ram','N/A')} / {adv_spec.get('harddisk','N/A')}</td></tr>
+                                <tr style='background:#f1f5f9;'><td><b>Brand/OS:</b></td><td>{adv_spec.get('brand','N/A')} / {adv_spec.get('os','N/A')}</td></tr>
                             </table>
                         </div>
                         """
@@ -245,7 +270,7 @@ with tab1:
         if st.button("📢 PUSH LIVE NOTIFICATION"):
             if ann_t and ann_b: requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b}); st.success("✅ Pushed Successfully!")
 
-# 💡 [නව විශේෂාංගය] Support Tickets & Live Chat සිස්ටම් එක
+# Support Tickets & Live Chat සිස්ටම් එක
 with tab3:
     st.subheader("🛠️ Technical Support & Ticket Interactive Chat Panel")
     
@@ -258,7 +283,6 @@ with tab3:
         if res_t.status_code == 200 and res_t.json():
             t_data = res_t.json()
             
-            # වටිනාකම් සහ සන්නිවේදන ලැයිස්තුව නිර්මාණය කිරීම
             for tid, det in t_data.items():
                 c_no = str(det.get("census_no", "")).strip()
                 p_name = census_to_name.get(c_no, f"Unknown ({c_no})")
@@ -269,7 +293,7 @@ with tab3:
                     st.markdown(f"**📝 Issue Description:** {det.get('description')}")
                     st.caption(f"Device Serial: {det.get('device_serial', 'N/A')} | Ticket ID: {tid}")
                     
-                    # 💡 [Live Chat] පණිවුඩ කියවීම සහ යැවීම
+                    # Live Chat පණිවුඩ කියවීම සහ යැවීම
                     st.write("---")
                     st.markdown("💬 **Live Discussion / අමාත්‍යාංශ පිළිතුරු:**")
                     chats = det.get("chats", {})
@@ -278,7 +302,7 @@ with tab3:
                             sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 Piriven"
                             st.markdown(f"**{sender}:** {cmsg.get('msg')}  *<small>({cmsg.get('time')})</small>*", unsafe_allow_html=True)
                     
-                    # චැට් එක ටයිප් කර සෙන්ඩ් කරන කොටස
+                    # පණිවුඩ ටයිප් කර සෙන්ඩ් කරන කොටස
                     chat_input = st.text_input("Type your response here / පිළිතුර සටහන් කරන්න:", key=f"chat_in_{tid}")
                     if st.button("↩️ Send Message", key=f"send_btn_{tid}"):
                         if chat_input:
@@ -296,4 +320,37 @@ with tab3:
         else: st.info("No reported tickets found.")
     except Exception as e: st.error(f"Error loading tickets: {e}")
 
-# Footer (කලින් කේතයේ පරිදිම පවතී)
+# Footer Section
+st.write("---")
+cur_year = datetime.datetime.now().year
+
+def get_base64_image(img_path):
+    if os.path.exists(img_path):
+        with open(img_path, "rb") as image_file: return f"data:image/png;base64,{base64.b64encode(image_file.read()).decode()}"
+    return ""
+
+state_img_base64 = get_base64_image("statelogo.png")
+piriven_img_base64 = get_base64_image("pirivenlogo.png")
+
+footer_html = f"""
+<div style="background-color: #1e293b; padding: 25px; border-radius: 12px; text-align: center; color: white; margin-top: 40px; font-family: sans-serif;">
+    <table style="width: 100%; border-collapse: collapse; border: none; background-color: transparent; margin: 0 auto;">
+        <tr style="border: none; background-color: transparent;">
+            <td style="width: 20%; text-align: right; border: none; background-color: transparent; padding: 10px; vertical-align: middle;">
+                {"<img src='" + state_img_base64 + "' style='height: 60px; max-width: 100%; object-fit: contain;'>" if state_img_base64 else ""}
+            </td>
+            <td style="width: 60%; text-align: center; border-top: none; border-bottom: none; border-left: 2px solid #475569; border-right: 2px solid #475569; background-color: transparent; padding: 10px 20px; vertical-align: middle;">
+                <p style="margin: 0; font-size: 16px; font-weight: bold; color: #60a5fa; letter-spacing: 0.5px;">Piriven Development Branch</p>
+                <p style="margin: 6px 0 0 0; font-size: 13px; color: #cbd5e1;">📧 Email: <a href="mailto:info.pirivendevelopment@gmail.com" style="color: #60a5fa; text-decoration: none; font-weight: bold;">info.pirivendevelopment@gmail.com</a></p>
+            </td>
+            <td style="width: 20%; text-align: left; border: none; background-color: transparent; padding: 10px; vertical-align: middle;">
+                {"<img src='" + piriven_img_base64 + "' style='height: 60px; max-width: 100%; object-fit: contain;'>" if piriven_img_base64 else ""}
+            </td>
+        </tr>
+    </table>
+    <div style="font-size: 11px; color: #94a3b8; margin-top: 20px; padding-top: 15px; border-top: 1px solid #334155; line-height: 1.5;">
+        © {cur_year} | All Rights Reserved | Development Branch, Piriven Division, Ministry of Education, Higher Education and Vocational Education.
+    </div>
+</div>
+"""
+st.markdown(footer_html, unsafe_allow_html=True)
