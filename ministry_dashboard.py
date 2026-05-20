@@ -1,3 +1,7 @@
+import streamlit as st
+import streamlit.components.v1 as components # 💡 [නව එකතු කිරීම] JS ඔරලෝසුව වැඩ කිරීමට මෙය අනිවාර්යයි
+import requests
+import folium
 import requests
 import streamlit as st
 import folium
