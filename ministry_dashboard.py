@@ -24,17 +24,30 @@ def process_youtube_link(url_or_id):
 
 st.set_page_config(page_title="Ministry Admin Dashboard", layout="wide")
 
-# 💡 [නව විශේෂාංගය] ඩෑෂ්බෝඩ් එකෙහි දකුණු පස ඉහළින්ම පෙනෙන සජීවී ඔරලෝසුව සහ දිනය Layout එක
 col_title, col_clock = st.columns([4, 1])
 with col_title:
     st.markdown("<h2 style='color: #1a365d; margin-top: -10px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color: #4a5568; font-size: 14px; font-weight: bold; margin-top: -15px;'>Central Control, Analytics & Monitoring Dashboard</p>", unsafe_allow_html=True)
 with col_clock:
-    # සර්වර් එකේ වත්මන් වෙලාව ලස්සන කොටුවක් ඇතුළත පෙන්වීම
-    st.markdown(f"""
-        <div style='background-color: #1e293b; color: #60a5fa; padding: 8px; border-radius: 8px; text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border: 1px solid #475569;'>
-            ⏱️ SERVER CLOCK<br>{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    # 💡 [විසඳුම] HTML/JS භාවිත කර සර්වර් වෙලාව වෙනුවට ඩෑෂ්බෝඩ් එක බලන පරිගණකයේ නියම සජීවී වෙලාව (Device Time) පෙන්වීම
+    st.markdown("""
+        <div id="device-clock" style='background-color: #1e293b; color: #60a5fa; padding: 8px; border-radius: 8px; text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border: 1px solid #475569;'>
+            💻 DEVICE TIME<br><span id="clock-span">Loading...</span>
         </div>
+        <script>
+            function updateClock() {
+                var now = new Date();
+                var year = now.getFullYear();
+                var month = String(now.getMonth() + 1).padStart(2, '0');
+                var day = String(now.getDate()).padStart(2, '0');
+                var hours = String(now.getHours()).padStart(2, '0');
+                var minutes = String(now.getMinutes()).padStart(2, '0');
+                var seconds = String(now.getSeconds()).padStart(2, '0');
+                document.getElementById('clock-span').innerText = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+            }
+            setInterval(updateClock, 1000);
+            updateClock();
+        </script>
     """, unsafe_allow_html=True)
 
 st.write("---")
@@ -171,5 +184,3 @@ with tab3:
                         if st.button("Mark as Solved ✅", key=f"sol_{tid}"): requests.patch(f"{FIREBASE_URL}support_tickets/{tid}.json", json={"status": "Solved"}); st.rerun()
         else: st.info("No tickets.")
     except Exception as e: st.error(f"Error: {e}")
-
-# Footer (කලින් පරිදිම පවතී)
