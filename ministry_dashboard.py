@@ -143,12 +143,26 @@ if df_usage is None and cloud_excel_data:
 if df_usage is None:
     df_usage = pd.DataFrame({"Census No": ["0542"], "Piriven Name": ["Sample Pirivena"], "District": ["Colombo"], "Zone": ["Central"], "Status": ["Offline"], "Latitude": [6.9271], "Longitude": [79.8612], "Monthly Usage (Hours)": [0]})
 
+# 💡 [විසඳුම] Cloud සර්වර් වෙලාව සහ ලංකාවේ වෙලාව අතර ගැටලුව විසඳූ සජීවී කාල සීමා පරීක්ෂකය
 def is_device_actually_active(last_ping_str):
     try:
         if not last_ping_str: return False
+        # 1. ඩිවයිස් එකෙන් ආපු අවසන් පින් වෙලාව කියවීම
         last_ping_time = datetime.datetime.strptime(last_ping_str, "%Y-%m-%d %H:%M:%S")
-        if (datetime.datetime.now() - last_ping_time).total_seconds() < 600: return True
-    except: pass
+        
+        # 2. සර්වර් එක දේශීය වෙලාව (ලංකාවේ වෙලාව) ලබා ගැනීම තහවුරු කිරීම
+        # සර්වර් එක UTC නම්, ලංකාවේ වෙලාව සකසා ගැනීමට පැය 5යි විනාඩි 30ක් එකතු කරයි
+        now_utc = datetime.datetime.utcnow()
+        srilanka_now = now_utc + datetime.timedelta(hours=5, minutes=30)
+        
+        # 3. කාල පරතරය තත්පරවලින් මැනීම (Absolute Difference)
+        time_difference = (srilanka_now - last_ping_time).total_seconds()
+        
+        # විනාඩි 10ක් (තත්පර 600ක්) ඇතුළත නම් පමණක් සජීවී (True) ලෙස සලකයි
+        if 0 <= time_difference < 600: 
+            return True
+    except Exception as e:
+        pass
     return False
 
 # ලැයිස්තුවේ පෙන්වීමට අවසාන සජීවී තත්ත්වය (Status) සැකසීම
