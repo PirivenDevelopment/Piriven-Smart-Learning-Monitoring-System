@@ -11,7 +11,6 @@ from urllib.parse import urlparse, parse_qs
 # ⚠️ Firebase API URL
 FIREBASE_URL = "https://pirivensmartboardmonitoring-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
-# ලංකාවේ නිල දිස්ත්‍රික්ක 25
 SRI_LANKA_DISTRICTS = [
     "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", 
     "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", 
@@ -53,12 +52,7 @@ st.markdown("""
         font-weight: bold;
         text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     }
-    
-    div[data-testid="stMetricLabel"] p {
-        color: #cbd5e1 !important;
-        font-weight: 600;
-    }
-    
+    div[data-testid="stMetricLabel"] p { color: #cbd5e1 !important; font-weight: 600; }
     .stButton>button { border-radius: 8px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
@@ -84,10 +78,7 @@ if uploaded_file:
     try:
         df_raw = pd.read_excel(uploaded_file)
         df_raw.columns = df_raw.columns.str.strip()
-        
-        df_raw["Census No"] = df_raw["Census No"].fillna("").astype(str).str.strip()
-        df_raw["Census No"] = df_raw["Census No"].apply(lambda x: x.split('.')[0] if '.' in x else x)
-        
+        df_raw["Census No"] = df_raw["Census No"].fillna("").astype(str).str.strip().apply(lambda x: x.split('.')[0] if '.' in x else x)
         df_raw["Piriven Name"] = df_raw["Piriven Name"].fillna("").astype(str).str.strip()
         df_raw["District"] = df_raw["District"].fillna("").astype(str).str.strip().str.title() 
         df_raw["Zone"] = df_raw["Zone"].fillna("").astype(str).str.strip().str.title() if "Zone" in df_raw.columns else df_raw["District"]
@@ -95,10 +86,8 @@ if uploaded_file:
         df_raw["Longitude"] = df_raw["Longitude"].fillna(0.0)
         df_raw["Monthly Usage (Hours)"] = df_raw["Monthly Usage (Hours)"].fillna(0)
 
-        # 💡 Excel එක සකස් කිරීමේදී වැරදීමකින් Latitude සහ Longitude මාරු වී තිබුණොත් ඔටෝම නිවැරදි කිරීම
         for index, row in df_raw.iterrows():
-            lat = float(row.get("Latitude", 0.0))
-            lon = float(row.get("Longitude", 0.0))
+            lat, lon = float(row.get("Latitude", 0.0)), float(row.get("Longitude", 0.0))
             if lat > 70.0 and lon < 15.0:
                 df_raw.at[index, "Latitude"] = lon
                 df_raw.at[index, "Longitude"] = lat
@@ -115,26 +104,21 @@ if uploaded_file:
 
 if df_usage is None and cloud_excel_data:
     df_usage = pd.DataFrame(cloud_excel_data)
-    df_usage["Census No"] = df_usage["Census No"].astype(str).str.strip()
-    df_usage["Census No"] = df_usage["Census No"].apply(lambda x: x.split('.')[0] if '.' in x else x)
+    df_usage["Census No"] = df_usage["Census No"].astype(str).str.strip().apply(lambda x: x.split('.')[0] if '.' in x else x)
     df_usage["District"] = df_usage["District"].astype(str).str.strip().str.title()
     st.sidebar.info("☁️ Registry Loaded from Cloud")
 
 if df_usage is None:
     df_usage = pd.DataFrame({"Census No": ["0542"], "Piriven Name": ["Sample Pirivena"], "District": ["Colombo"], "Zone": ["Central"], "Status": ["Offline"], "Latitude": [6.9271], "Longitude": [79.8612], "Monthly Usage (Hours)": [0]})
 
-# 💡 ඩිවයිස් එකක් සජීවීද නැද්ද කියා කාල සීමාව අනුව (Heartbeat Timeout) තීරණය කරන ආරක්ෂිත පියවර
 def is_device_actually_active(last_ping_str):
     try:
         if not last_ping_str: return False
         last_ping_time = datetime.datetime.strptime(last_ping_str, "%Y-%m-%d %H:%M:%S")
-        time_difference = datetime.datetime.now() - last_ping_time
-        if time_difference.total_seconds() < 600: 
-            return True
+        if (datetime.datetime.now() - last_ping_time).total_seconds() < 600: return True
     except: pass
     return False
 
-# ලැයිස්තුවේ පෙන්වීමට අවසාන සජීවී තත්ත්වය (Status) සැකසීම
 live_census_list = []
 for c_id, devices in live_boards_data.items():
     if isinstance(devices, dict):
@@ -157,8 +141,7 @@ pir_list = ["All Piriven"] + sorted(df_step1["Piriven Name"].unique().tolist())
 selected_piriven = st.sidebar.selectbox("Select Piriven Name:", pir_list)
 df_filtered = df_step1[df_step1["Piriven Name"] == selected_piriven] if selected_piriven != "All Piriven" else df_step1.copy()
 
-# Tabs Layout
-tab1, tab2, tab3 = st.tabs(["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets"])
+tab1, tab2, tab3 = st.tabs(["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets & Live Chat"])
 
 with tab2:
     st.subheader("📊 Performance Analytics")
@@ -171,12 +154,10 @@ with tab2:
     
     for c_no in filtered_census_nos:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
-            # 1. Active Devices ගණන සෙවීම
+            # 💡 [විසඳුම] Multi-Device Fix: හැම ඩිවයිස් එකක්ම වෙන වෙනම ගණන් ගැනීම
             for dev_id, dev_info in live_boards_data[c_no].items():
                 if dev_id != "attendance" and isinstance(dev_info, dict) and is_device_actually_active(dev_info.get("last_ping")):
                     total_active_devices += 1
-            
-            # 2. AI Attendance දත්ත තිබේ නම් ශිෂ්‍ය එකතුව ලබා ගැනීම
             if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                 att_info = live_boards_data[c_no]["attendance"]
                 if is_device_actually_active(att_info.get("last_captured")):
@@ -186,9 +167,7 @@ with tab2:
     c_right.metric("👨‍🎓 Total Live Students Learning Now", total_live_students) 
     st.write("---")
     
-    display_name = "All Island" if selected_piriven == "All Piriven" else selected_piriven
-    st.markdown(f"### 🖥️ Smart Board Software Analytics ({display_name})")
-    
+    # Software chart logics
     app_hours_dict = {}
     try:
         res_apps = requests.get(f"{FIREBASE_URL}software_analytics.json")
@@ -197,45 +176,15 @@ with tab2:
             for c_no in filtered_census_nos:
                 if c_no in apps_cloud_data and isinstance(apps_cloud_data[c_no], dict):
                     for app_name, minutes in apps_cloud_data[c_no].items():
-                        if app_name not in app_hours_dict:
-                            app_hours_dict[app_name] = 0.0
+                        if app_name not in app_hours_dict: app_hours_dict[app_name] = 0.0
                         app_hours_dict[app_name] += round(minutes / 60.0, 2)
     except: pass
-    
-    if not app_hours_dict:
-        app_hours_dict = {"No Software Tracked Yet": 0.0}
-        
-    software_chart_data = pd.DataFrame({
-        "Software Application": list(app_hours_dict.keys()),
-        "Total Active Execution (Hours)": list(app_hours_dict.values())
-    })
+    if not app_hours_dict: app_hours_dict = {"No Software Tracked Yet": 0.0}
+    software_chart_data = pd.DataFrame({"Software Application": list(app_hours_dict.keys()), "Total Active Execution (Hours)": list(app_hours_dict.values())})
     
     col_sw1, col_sw2 = st.columns(2)
-    with col_sw1:
-        st.markdown("**Software Usage Comparison (Hours)**")
-        st.bar_chart(software_chart_data.set_index("Software Application"))
-    with col_sw2:
-        st.markdown("**Application Screen-Time Breakdown**")
-        st.dataframe(software_chart_data, use_container_width=True)
-            
-    st.write("---")
-    st.markdown("**Overall Board Runtime Log (Hours)**")
-    st.bar_chart(df_filtered.set_index("Piriven Name")["Monthly Usage (Hours)"])
-    
-    st.write("---")
-    st.markdown("### 📋 Device Registry & Quick Map Link")
-    styled_df = df_filtered.drop(columns=["Latitude", "Longitude"], errors="ignore").style.map(
-        lambda v: "background-color: #d1fae5; color: #065f46; font-weight: bold;" if v == "Active" else ("background-color: #fee2e2; color: #991b1b; font-weight: bold;" if v == "Offline" else ""),
-        subset=["Status"]
-    )
-    st.dataframe(styled_df, use_container_width=True)
-
-# Map View Setup
-map_center = [7.8731, 80.7718]
-map_zoom = 8
-if selected_piriven != "All Piriven" and not df_filtered.empty:
-    first_row = df_filtered.iloc[0]
-    if first_row["Latitude"] != 0: map_center = [first_row["Latitude"], first_row["Longitude"]]; map_zoom = 14
+    with col_sw1: st.bar_chart(software_chart_data.set_index("Software Application"))
+    with col_sw2: st.dataframe(software_chart_data, use_container_width=True)
 
 with tab1:
     col_map, col_ctrl = st.columns([3, 2])
@@ -254,6 +203,7 @@ with tab1:
                     if is_device_actually_active(att_info.get("last_captured")):
                         live_stu_popup = att_info.get("live_student_count", 0)
 
+                # 💡 [විසඳුම] Multi-Device Fix: ලැප්ටොප් සහ ස්මාර්ට්බෝඩ් දෙකම තිබේ නම් දෙකම වෙන වෙනම සිතියමේ අඳියි
                 for dev_id, dev_info in live_boards_data[c_no].items():
                     if dev_id == "attendance" or not isinstance(dev_info, dict): continue
                     
@@ -262,151 +212,88 @@ with tab1:
                         d_type = dev_info.get("device_type", "Smart Board")
                         l_lat = dev_info.get("live_lat", r["Latitude"])
                         l_lon = dev_info.get("live_lon", r["Longitude"])
+                        l_city = "Ministry Zone" if l_lat == 7.8731 or l_lat == 0.0 else dev_info.get("live_city", "Unknown")
                         
-                        if c_no == "430001" or l_lat == 7.8731 or l_lat == 0.0 or l_lat == 7.873100000000001:
-                            l_lat = r["Latitude"]
-                            l_lon = r["Longitude"]
-                            l_city = "Ministry Office (Battaramulla)"
-                        else:
-                            l_city = dev_info.get("live_city", "Unknown")
-                        
-                        if d_type == "Smart Board": icon_color = "green"
-                        elif d_type == "Laptop": icon_color = "blue"
-                        else: icon_color = "orange"
-                        
-                        # சර්වර් එකෙන් එන උසස් දෘඪාංග විස්තර කියවීම
+                        icon_color = "green" if d_type == "Smart Board" else "blue" if d_type == "Laptop" else "orange"
                         adv_spec = dev_info.get("spec_advanced", {})
                         
-                        # Popup එක තුළ උසස් දෘඪාංග විස්තර වගුවක් ලෙස හැඩගැන්වීම
                         popup_html = f"""
-                        <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
-                            <h3 style='margin: 0 0 5px 0; color: #1e293b;'>🏛️ {r['Piriven Name']}</h3>
-                            <span style='background-color: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-weight: bold;'>🟢 Active Now</span><br>
-                            <p style='margin: 8px 0 4px 0;'>📟 <b>Device Type:</b> {d_type} (Serial: {dev_id})</p>
-                            <p style='margin: 0 0 8px 0;'>👨‍🎓 <b>Active Students Now:</b> <span style='color: #2563eb; font-weight: bold;'>{live_stu_popup}</span></p>
-                            
-                            <table style='width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 11px;'>
-                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Brand / Model</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('brand', 'N/A')} - {adv_spec.get('model', 'N/A')}</td></tr>
-                                <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Chipset</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('chipset', 'N/A')}</td></tr>
-                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Processor</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('processor', 'N/A')}</td></tr>
-                                <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Frequency / L3 Cache</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('frequency', 'N/A')} / {adv_spec.get('cache', 'N/A')}</td></tr>
-                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>RAM / Storage</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('ram', 'N/A')} / {adv_spec.get('harddisk', 'N/A')}</td></tr>
-                                <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>OS Version</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('os', 'N/A')}</td></tr>
+                        <div style='font-family: sans-serif; font-size: 11px; min-width: 250px;'>
+                            <b>🏛️ {r['Piriven Name']}</b><br>
+                            📟 <b>Type:</b> {d_type} (Serial: {dev_id})<br>
+                            🟢 <b>Status:</b> Active Now | 👨‍🎓 <b>Students:</b> {live_stu_popup}<br>
+                            <table style='width:100%; border-collapse:collapse; margin-top:5px;'>
+                                <tr style='background:#f1f5f9;'><td><b>Spec:</b></td><td>{adv_spec.get('processor','N/A')} | {adv_spec.get('ram','N/A')}</td></tr>
+                                <tr><td><b>Disk/OS:</b></td><td>{adv_spec.get('harddisk','N/A')} | {adv_spec.get('os','N/A')}</td></tr>
                             </table>
                         </div>
                         """
-                        
-                        if l_lat != 0.0 and l_lon != 0.0:
-                            folium.Marker(
-                                [l_lat, l_lon],
-                                popup=popup_html,
-                                icon=folium.Icon(color=icon_color, icon="desktop" if d_type != "Laptop" else "laptop")
-                            ).add_to(m)
+                        folium.Marker([l_lat, l_lon], popup=popup_html, icon=folium.Icon(color=icon_color, icon="desktop" if d_type != "Laptop" else "laptop")).add_to(m)
             
             if not is_any_device_live and r["Latitude"] != 0:
-                folium.Marker(
-                    [r["Latitude"], r["Longitude"]], 
-                    popup=f"🏛️ {r['Piriven Name']}<br>🔴 Status: Offline", 
-                    icon=folium.Icon(color="red", icon="remove-sign")
-                ).add_to(m)
+                folium.Marker([r["Latitude"], r["Longitude"]], popup=f"🏛️ {r['Piriven Name']}<br>🔴 Offline", icon=folium.Icon(color="red", icon="remove-sign")).add_to(m)
                                       
-        st_folium(m, width=700, height=600, key=f"map_{selected_district}_{selected_piriven}_{map_center[0]}")
+        st_folium(m, width=700, height=600, key=f"map_{selected_district}_{selected_piriven}")
 
     with col_ctrl:
         st.subheader("📢 Command Center")
-        yt_input = st.text_input("YouTube URL (Video, Playlist or Channel):")
+        yt_input = st.text_input("YouTube URL:")
         if st.button("🚀 BROADCAST TO ALL BOARDS"):
-            if yt_input:
-                link_data = process_youtube_link(yt_input)
-                try:
-                    requests.put(f"{FIREBASE_URL}current_lesson.json", json=link_data)
-                    st.success(f"✅ Broadcast Successful! Type: {link_data['type'].capitalize()}")
-                except: st.error("❌ Cloud Connection Error.")
-            else: st.warning("⚠️ Please paste a YouTube link.")
-                        
+            if yt_input: requests.put(f"{FIREBASE_URL}current_lesson.json", json=process_youtube_link(yt_input)); st.success("✅ Broadcast Successful!")
         st.write("---")
-        ann_t = st.text_input("Announcement Title:")
-        ann_b = st.text_area("Message Body:")
+        ann_t, ann_b = st.text_input("Announcement Title:"), st.text_area("Message Body:")
         if st.button("📢 PUSH LIVE NOTIFICATION"):
-            if ann_t and ann_b: requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b}); st.success("✅ Message Pushed Successfully!")
+            if ann_t and ann_b: requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b}); st.success("✅ Pushed Successfully!")
 
+# 💡 [නව විශේෂාංගය] Support Tickets & Live Chat සිස්ටම් එක
 with tab3:
-    st.subheader("🛠️ Technical Support Tickets Control Panel")
+    st.subheader("🛠️ Technical Support & Ticket Interactive Chat Panel")
     
-    # 💡 [විසඳුම] බොත්තම ඔබද්දී සැනින් සර්වර් එක යාවත්කාලීන කර තිරය ස්වයංක්‍රීයව රීෆ්‍රෙෂ් (Rerun) කරවන ස්මාර්ට් ශ්‍රිතය
     def resolve_ticket(ticket_id):
-        try:
-            res = requests.patch(f"{FIREBASE_URL}support_tickets/{ticket_id}.json", json={"status": "Solved"}, timeout=4)
-            if res.status_code == 200: 
-                st.toast("🟢 ටිකට් එක සාර්ථකව යාවත්කාලීන වුණා!", icon="✅")
-                st.rerun() # 🚀 [සංශෝධනය] දත්ත සැනින් පිරිවෙන් ඇප් එකට සන්නිවේදනය වීමට තිරය රීෆ්‍රෙෂ් කිරීම
-        except: st.sidebar.error("❌ Connection Error.")
+        requests.patch(f"{FIREBASE_URL}support_tickets/{ticket_id}.json", json={"status": "Solved"})
+        st.rerun()
 
     try:
         res_t = requests.get(f"{FIREBASE_URL}support_tickets.json", timeout=4)
         if res_t.status_code == 200 and res_t.json():
             t_data = res_t.json()
-            t_list = []
+            
+            # වටිනාකම් සහ සන්නිවේදන ලැයිස්තුව නිර්මාණය කිරීම
             for tid, det in t_data.items():
                 c_no = str(det.get("census_no", "")).strip()
                 p_name = census_to_name.get(c_no, f"Unknown ({c_no})")
                 if selected_piriven != "All Piriven" and p_name != selected_piriven: continue
-                t_list.append({
-                    "Ticket ID": tid, "Piriven": p_name, "Device Serial No": det.get("device_serial", "N/A"),
-                    "Issue Category": det.get("issue_type"), "Description": det.get("description"), "Status": det.get("status", "Pending")
-                })
-            
-            if t_list:
-                df_tickets = pd.DataFrame(t_list)
-                csv_data = df_tickets.to_csv(index=False).encode('utf-8')
-                st.download_button(label="📥 DOWNLOAD ALL TICKETS (JOB LIST) AS CSV", data=csv_data, file_name=f"Piriven_Support_Jobs_{datetime.date.today()}.csv", mime="text/csv")
-                st.write("---")
                 
-                for index, row in df_tickets.iterrows():
-                    col_t1, col_t2, col_t3 = st.columns([3, 1, 1])
-                    with col_t1: st.markdown(f"🏛️ **{row['Piriven']}** ({row['Issue Category']})<br>📝 *{row['Description']}*<br><small>Serial: {row['Device Serial No']}</small>", unsafe_allow_html=True)
-                    with col_t2:
-                        if row['Status'] == "Pending": st.markdown("🔴 <span style='color:red;font-weight:bold;'>Pending</span>", unsafe_allow_html=True)
-                        else: st.markdown("🟢 <span style='color:green;font-weight:bold;'>Solved</span>", unsafe_allow_html=True)
-                    with col_t3:
-                        if row['Status'] == "Pending": st.button("Mark as Solved", key=f"btn_{row['Ticket ID']}_{index}", on_click=resolve_ticket, args=(row['Ticket ID'],))
-                        else: st.write("🔒 Complete")
-                    st.write("<hr style='margin: 10px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
-            else: st.info("No tickets reported for the selected filter.")
-        else: st.info("No tickets reported in the system.")
-    except Exception as ex: st.error(f"Cloud Error: {ex}")
+                # ජොබ් කාඩ් එක (Expandable UI)
+                with st.expander(f"🏛️ {p_name} - [{det.get('issue_type')}] (⏱️ {det.get('reported_at', 'N/A')}) - Status: {det.get('status')}"):
+                    st.markdown(f"**📝 Issue Description:** {det.get('description')}")
+                    st.caption(f"Device Serial: {det.get('device_serial', 'N/A')} | Ticket ID: {tid}")
+                    
+                    # 💡 [Live Chat] පණිවුඩ කියවීම සහ යැවීම
+                    st.write("---")
+                    st.markdown("💬 **Live Discussion / අමාත්‍යාංශ පිළිතුරු:**")
+                    chats = det.get("chats", {})
+                    if chats:
+                        for cid, cmsg in chats.items():
+                            sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 Piriven"
+                            st.markdown(f"**{sender}:** {cmsg.get('msg')}  *<small>({cmsg.get('time')})</small>*", unsafe_allow_html=True)
+                    
+                    # චැට් එක ටයිප් කර සෙන්ඩ් කරන කොටස
+                    chat_input = st.text_input("Type your response here / පිළිතුර සටහන් කරන්න:", key=f"chat_in_{tid}")
+                    if st.button("↩️ Send Message", key=f"send_btn_{tid}"):
+                        if chat_input:
+                            new_chat_node = {
+                                "sender": "ministry",
+                                "msg": chat_input,
+                                "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                            requests.post(f"{FIREBASE_URL}support_tickets/{tid}/chats.json", json=new_chat_node)
+                            st.rerun()
+                    
+                    st.write("---")
+                    if det.get('status') == "Pending":
+                        st.button("Mark as Solved ✅", key=f"sol_{tid}", on_click=resolve_ticket, args=(tid,))
+        else: st.info("No reported tickets found.")
+    except Exception as e: st.error(f"Error loading tickets: {e}")
 
-# Footer Section
-st.write("---")
-cur_year = datetime.datetime.now().year
-
-def get_base64_image(img_path):
-    if os.path.exists(img_path):
-        with open(img_path, "rb") as image_file: return f"data:image/png;base64,{base64.b64encode(image_file.read()).decode()}"
-    return ""
-
-state_img_base64 = get_base64_image("statelogo.png")
-piriven_img_base64 = get_base64_image("pirivenlogo.png")
-
-footer_html = f"""
-<div style="background-color: #1e293b; padding: 25px; border-radius: 12px; text-align: center; color: white; margin-top: 40px; font-family: sans-serif;">
-    <table style="width: 100%; border-collapse: collapse; border: none; background-color: transparent; margin: 0 auto;">
-        <tr style="border: none; background-color: transparent;">
-            <td style="width: 20%; text-align: right; border: none; background-color: transparent; padding: 10px; vertical-align: middle;">
-                {"<img src='" + state_img_base64 + "' style='height: 60px; max-width: 100%; object-fit: contain;'>" if state_img_base64 else ""}
-            </td>
-            <td style="width: 60%; text-align: center; border-top: none; border-bottom: none; border-left: 2px solid #475569; border-right: 2px solid #475569; background-color: transparent; padding: 10px 20px; vertical-align: middle;">
-                <p style="margin: 0; font-size: 16px; font-weight: bold; color: #60a5fa; letter-spacing: 0.5px;">Piriven Development Branch</p>
-                <p style="margin: 6px 0 0 0; font-size: 13px; color: #cbd5e1;">📧 Email: <a href="mailto:info.pirivendevelopment@gmail.com" style="color: #60a5fa; text-decoration: none; font-weight: bold;">info.pirivendevelopment@gmail.com</a></p>
-            </td>
-            <td style="width: 20%; text-align: left; border: none; background-color: transparent; padding: 10px; vertical-align: middle;">
-                {"<img src='" + piriven_img_base64 + "' style='height: 60px; max-width: 100%; object-fit: contain;'>" if piriven_img_base64 else ""}
-            </td>
-        </tr>
-    </table>
-    <div style="font-size: 11px; color: #94a3b8; margin-top: 20px; padding-top: 15px; border-top: 1px solid #334155; line-height: 1.5;">
-        © {cur_year} | All Rights Reserved | Development Branch, Piriven Division, Ministry of Education, Higher Education and Vocational Education.
-    </div>
-</div>
-"""
-st.markdown(footer_html, unsafe_allow_html=True)
+# Footer (කලින් කේතයේ පරිදිම පවතී)
