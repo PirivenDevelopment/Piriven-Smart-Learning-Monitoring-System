@@ -1,6 +1,6 @@
 import requests
 import streamlit as st
-import streamlit.components.v1 as components  # 💡 JS ඔරලෝසුව සජීවීව පණගැන්වීමට
+import streamlit.components.v1 as components  # 💡 JS ඔරලෝසුව සජීවීව පණගැන්වීමට මෙය අනිවාර්යයි
 import folium
 from streamlit_folium import st_folium
 import pandas as pd
@@ -64,7 +64,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 [විසඳුම] පරිශීලකයාගේ පරිගණකයේ නියම වෙලාව පෙන්වන සජීවී ඔරලෝසු ව්‍යුහය (Client-side HTML/JS Component)
+# 💡 [විසඳුම] Client-side HTML/JS Component එකක් ලෙස ආරක්ෂිතව ධාවනය වන ඔරලෝසුව
 col_title, col_clock = st.columns([4, 1])
 with col_title:
     st.markdown("<h2 style='color: #1a365d; margin-top: -10px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
@@ -206,7 +206,7 @@ with tab2:
         if res_apps.status_code == 200 and res_apps.json():
             apps_cloud_data = res_apps.json()
             for c_no in filtered_census_nos:
-                if c_no in apps_cloud_data and isinstance(apps_cloud_data[c_no], dict):
+                if c_no in apps_cloud_data && isinstance(apps_cloud_data[c_no], dict):
                     for app_name, minutes in apps_cloud_data[c_no].items():
                         if app_name not in app_hours_dict: app_hours_dict[app_name] = 0.0
                         app_hours_dict[app_name] += round(minutes / 60.0, 2)
@@ -225,14 +225,14 @@ with tab2:
     st.write("---")
     st.markdown("### 📋 Device Registry & Quick Map Link")
     
-    # 💡 [විසඳුම] ඇක්ටිව් පිරිවෙන්වල වර්ණය වගුව තුළ පැහැදිලිව කොළ සහ රතු පැහැයෙන් ස්ටයිල් කර පෙන්වීම
+    # ඇක්ටිව් පිරිවෙන්වල වර්ණය වගුව තුළ පැහැදිලිව කොළ සහ රතු පැහැයෙන් පෙන්වීම
     styled_df = df_filtered.drop(columns=["Latitude", "Longitude"], errors="ignore").style.map(
         lambda v: "background-color: #d1fae5; color: #065f46; font-weight: bold;" if v == "Active" else ("background-color: #fee2e2; color: #991b1b; font-weight: bold;" if v == "Offline" else ""),
         subset=["Status"]
     )
     st.dataframe(styled_df, use_container_width=True)
 
-# 💡 [විසඳුම] NameError වැළැක්වීම සඳහා සිතියම් කේන්ද්‍රය කලින්ම සකසා ගැනීම
+# NameError වැළැක්වීම සඳහා සිතියම් කේන්ද්‍රය කලින්ම සකසා ගැනීම
 map_center = [7.8731, 80.7718]
 map_zoom = 8
 if selected_piriven != "All Piriven" and not df_filtered.empty:
@@ -273,12 +273,12 @@ with tab1:
                         else:
                             l_city = dev_info.get("live_city", "Unknown")
                         
-                        # 💡 [විසඳුම] ලොග්වන ඩිවයිස් එක පාට අනුව වෙන් කර සිතියම මත පෙන්වීම (Smart Board = Green, Laptop = Blue, PC = Orange)
+                        # ලොග්වන ඩිවයිස් එක පාට අනුව වෙන් කර සිතියම මත පෙන්වීම
                         if d_type == "Smart Board": icon_color = "green"
                         elif d_type == "Laptop": icon_color = "blue"
                         else: icon_color = "orange"
                         
-                        # ⭐ පරිපූර්ණ දෘඪාංග පිරිවිතරයන් (In-depth Hardware Specs Table) ලස්සන ආකෘතිය
+                        # ⭐ පරිපූර්ණ දෘඪාංග පිරිවිතරයන් ලස්සන ආකෘතිය
                         adv_spec = dev_info.get("spec_advanced", {})
                         popup_html = f"""
                         <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
@@ -327,7 +327,7 @@ with tab1:
                 requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b})
                 st.success("✅ Message Pushed Successfully!")
 
-# 💡 [නව විශේෂාංගය] සන්නිවේදන ප්‍රමාදයන් නැති සජීවී නිල Chat සහ Expandable Job Card ව්‍යුහය
+# 💡 [සංශෝධනය] ටිකට් එක Solved වූ පසු චැට් එක සම්පූර්ණයෙන්ම වසා දමන (Lock කරන) පද්ධතිය
 with tab3:
     st.subheader("🛠️ Technical Support & Ticket Interactive Chat Panel")
     
@@ -344,7 +344,6 @@ with tab3:
         if res_t.status_code == 200 and res_t.json():
             t_data = res_t.json()
             
-            # 💡 [විසඳුම] දිගු Card Numbers වෙනුවට සරල ක්‍රමයකට අංක පිළිවෙලක් (Index Based Numbering) සෑදීම
             ticket_index = 1
             
             for tid, det in t_data.items():
@@ -368,21 +367,24 @@ with tab3:
                             sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 Piriven"
                             st.markdown(f"**{sender}:** {cmsg.get('msg')}  *<small>({cmsg.get('time')[11:16]})</small>*", unsafe_allow_html=True)
                     
-                    # Response Submission
-                    chat_input = st.text_input("Type your response here / පිළිතුර සටහන් කරන්න:", key=f"chat_in_{tid}")
-                    if st.button("↩️ Send Message", key=f"send_btn_{tid}"):
-                        if chat_input:
-                            new_chat_node = {
-                                "sender": "ministry",
-                                "msg": chat_input,
-                                "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            }
-                            requests.post(f"{FIREBASE_URL}support_tickets/{tid}/chats.json", json=new_chat_node)
-                            st.rerun()
-                    
-                    st.write("---")
+                    # 💡 [විසඳුම] ටිකට් එක Pending තත්ත්වයේ ඇත්නම් පමණක් චැට් එක පෙන්වීම, Solved නම් වැසීම
                     if det.get('status') == "Pending":
+                        chat_input = st.text_input("Type your response here / පිළිතුර සටහන් කරන්න:", key=f"chat_in_{tid}")
+                        if st.button("↩️ Send Message", key=f"send_btn_{tid}"):
+                            if chat_input:
+                                new_chat_node = {
+                                    "sender": "ministry",
+                                    "msg": chat_input,
+                                    "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                }
+                                requests.post(f"{FIREBASE_URL}support_tickets/{tid}/chats.json", json=new_chat_node)
+                                st.rerun()
+                        
+                        st.write("---")
                         st.button("Mark as Solved ✅", key=f"sol_{tid}", on_click=resolve_ticket, args=(tid,))
+                    else:
+                        # 🔒 ටිකට් එක Solved නම් ඩෑෂ්බෝඩ් එකෙන්ද චැට් එක වසා දමයි
+                        st.info("🔒 This ticket has been marked as solved. Chat is locked.")
                 
                 ticket_index += 1
         else: st.info("No reported tickets found.")
