@@ -11,6 +11,7 @@ from urllib.parse import urlparse, parse_qs
 # ⚠️ Firebase API URL
 FIREBASE_URL = "https://pirivensmartboardmonitoring-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
+# ලංකාවේ නිල දිස්ත්‍රික්ක 25
 SRI_LANKA_DISTRICTS = [
     "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", 
     "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", 
@@ -120,13 +121,13 @@ def is_device_actually_active(last_ping_str):
         if not last_ping_str: return False
         last_ping_time = datetime.datetime.strptime(last_ping_str, "%Y-%m-%d %H:%M:%S")
         time_difference = datetime.datetime.now() - last_ping_time
-        # අවසන් සංඥාව ඇවිත් විනාඩි 10කට වඩා වැඩි නම් එය Offline (අක්‍රිය) ලෙස සැලකීම
+        # අවසන් සංඥාව ඇවිත් විනාඩි 10 කට වඩා වැඩි නම් එය Offline (අක්‍රිය) ලෙස සැලකීම
         if time_difference.total_seconds() < 600: 
             return True
     except: pass
     return False
 
-# ලයිස්තුවේ පෙන්වීමට අවසාන තත්ත්වය (Status) සැකසීම
+# ලැයිස්තුවේ පෙන්වීමට අවසාන සජීවී තත්ත්වය (Status) සැකසීම
 live_census_list = []
 for c_id, devices in live_boards_data.items():
     if isinstance(devices, dict):
@@ -154,19 +155,30 @@ tab1, tab2, tab3 = st.tabs(["🗺️ Live Map & Remote Control", "📊 Analytics
 
 with tab2:
     st.subheader("📊 Performance Analytics")
-    c_left, c_right = st.columns(2)
+    c_left, c_middle, c_right = st.columns(3) # 💡 [විසඳුම] 3 Columns මට්ටමට Layout එක සකස් කිරීම
     c_left.metric("Registered Boards", len(df_filtered))
     
-    # 💡 [විසඳුම] සැබෑ ලෙසම දැනට ක්‍රියාත්මක වන උපාංග පමණක් මෙට්‍රික් එකට එකතු කිරීම
+    # 💡 [විසඳුම] සැබෑ ලෙසම දැනට සක්‍රිය උපාංග සහ AI මඟින් හඳුනාගත් මුළු ශිෂ්‍ය සංඛ්‍යාව ගණනය කිරීම
     total_active_devices = 0
+    total_live_students = 0
     filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
+    
     for c_no in filtered_census_nos:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
+            # 1. Active Devices ගණන සෙවීම
             for dev_id, dev_info in live_boards_data[c_no].items():
                 if isinstance(dev_info, dict) and is_device_actually_active(dev_info.get("last_ping")):
                     total_active_devices += 1
             
-    c_right.metric("Total Active Devices Now", total_active_devices)
+            # 2. AI Attendance දත්ත තිබේ නම් ශිෂ්‍ය එකතුව ලබා ගැනීම
+            if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
+                att_info = live_boards_data[c_no]["attendance"]
+                # අවසන් වරට කැමරාව ක්‍රියාත්මක වී විනාඩි 20කට වඩා පැරණි නොවේ නම් පමණක් සිසුන් සංඛ්‍යාව එකතු කිරීම
+                if is_device_actually_active(att_info.get("last_captured")):
+                    total_live_students += int(att_info.get("live_student_count", 0))
+            
+    c_middle.metric("Total Active Devices Now", total_active_devices)
+    c_right.metric("👨‍🎓 Total Live Students Learning Now", total_live_students) # 💡 [නව විශේෂාංගය]
     st.write("---")
     
     display_name = "All Island" if selected_piriven == "All Piriven" else selected_piriven
@@ -231,16 +243,24 @@ with tab1:
             is_any_device_live = False
             
             if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
+                # AI ශිෂ්‍ය සංඛ්‍යාව සිතියම් පොප්අප් එක සඳහා කියවා ගැනීම
+                live_stu_popup = 0
+                if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
+                    att_info = live_boards_data[c_no]["attendance"]
+                    if is_device_actually_active(att_info.get("last_captured")):
+                        live_stu_popup = att_info.get("live_student_count", 0)
+
                 for dev_id, dev_info in live_boards_data[c_no].items():
-                    if not isinstance(dev_info, dict): continue
+                    if dev_id == "attendance" or not isinstance(dev_info, dict): continue
                     
-                    # 💡 [විසඳුම] සිතියම මත ලකුණු කරන්නේ ඇත්තටම සජීවී උපාංග පමණි
+                    # 💡 [විසඳුම] සිතියම මත ලකුණු කරන්නේ ඇත්තටම සජීවීව පවතින උපාංග පමණි
                     if is_device_actually_active(dev_info.get("last_ping")):
                         is_any_device_live = True
                         d_type = dev_info.get("device_type", "Smart Board")
                         l_lat = dev_info.get("live_lat", r["Latitude"])
                         l_lon = dev_info.get("live_lon", r["Longitude"])
                         
+                        # ආණමඩුව හෝ වැරදි IP පිහිටීම් මඟහැර බත්තරමුල්ල නිවැරදි ස්ථානය ලබා ගැනීම
                         if c_no == "430001" or l_lat == 7.8731 or l_lat == 0.0 or l_lat == 7.873100000000001:
                             l_lat = r["Latitude"]
                             l_lon = r["Longitude"]
@@ -255,11 +275,11 @@ with tab1:
                         if l_lat != 0.0 and l_lon != 0.0:
                             folium.Marker(
                                 [l_lat, l_lon],
-                                popup=f"🏛️ <b>{r['Piriven Name']}</b><br>📟 Device: {d_type}<br>📍 Location: {l_city}<br>🟢 Status: Active Now",
+                                popup=f"🏛️ <b>{r['Piriven Name']}</b><br>📟 Device: {d_type}<br>📍 Location: {l_city}<br>👨‍🎓 Active Students: {live_stu_popup}<br>🟢 Status: Active Now",
                                 icon=folium.Icon(color=icon_color, icon="desktop" if d_type != "Laptop" else "laptop")
                             ).add_to(m)
             
-            # 💡 [විසඳුම] උපාංගය සැබෑ ලෙසම Offline නම් පමණක් රතු මාකර් එක පෙන්වීම
+            # 💡 [විසඳුම] උපාංගය සැබෑ ලෙසම Offline නම් පමණක් රතු මාකර් එක සිතියම මත පෙන්වීම
             if not is_any_device_live and r["Latitude"] != 0:
                 folium.Marker(
                     [r["Latitude"], r["Longitude"]], 
