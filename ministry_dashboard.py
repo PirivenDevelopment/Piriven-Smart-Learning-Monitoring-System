@@ -1,6 +1,6 @@
 import requests
 import streamlit as st
-import streamlit.components.v1 as components  # 💡 JS ඔරලෝසුව සජීවීව පණගැන්වීමට මෙය අනිවාර්යයි
+import streamlit.components.v1 as components  # 💡 JS ඔරලෝසුව සජීවීව පණගැන්වීමට
 import folium
 from streamlit_folium import st_folium
 import pandas as pd
@@ -64,7 +64,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 [විසඳුම] Client-side HTML/JS Component එකක් ලෙස ආරක්ෂිතව ධාවනය වන ඔරලෝසුව
+# 💡 [විසඳුම] වින්ඩෝස් පද්ධතියේ නියම වෙලාව පෙන්වන සජීවී ඔරලෝසු ව්‍යුහය (iFrame Isolated JS Component)
 col_title, col_clock = st.columns([4, 1])
 with col_title:
     st.markdown("<h2 style='color: #1a365d; margin-top: -10px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
@@ -118,7 +118,6 @@ if uploaded_file:
         df_raw["Longitude"] = df_raw["Longitude"].fillna(0.0)
         df_raw["Monthly Usage (Hours)"] = df_raw["Monthly Usage (Hours)"].fillna(0)
 
-        # 💡 Excel Latitude / Longitude මාරු වී තිබුණොත් Auto-Fix Logic එක
         for index, row in df_raw.iterrows():
             lat, lon = float(row.get("Latitude", 0.0)), float(row.get("Longitude", 0.0))
             if lat > 70.0 and lon < 15.0:
@@ -143,26 +142,15 @@ if df_usage is None and cloud_excel_data:
 if df_usage is None:
     df_usage = pd.DataFrame({"Census No": ["0542"], "Piriven Name": ["Sample Pirivena"], "District": ["Colombo"], "Zone": ["Central"], "Status": ["Offline"], "Latitude": [6.9271], "Longitude": [79.8612], "Monthly Usage (Hours)": [0]})
 
-# 💡 [විසඳුම] Cloud සර්වර් වෙලාව සහ ලංකාවේ වෙලාව අතර ගැටලුව විසඳූ සජීවී කාල සීමා පරීක්ෂකය
+# 💡 [විසඳුම] Cloud සර්වර් සහ ලංකාවේ වෙලාව අතර Timezone පැටලීම විසඳූ සජීවී පරීක්ෂකය
 def is_device_actually_active(last_ping_str):
     try:
         if not last_ping_str: return False
-        # 1. ඩිවයිස් එකෙන් ආපු අවසන් පින් වෙලාව කියවීම
         last_ping_time = datetime.datetime.strptime(last_ping_str, "%Y-%m-%d %H:%M:%S")
-        
-        # 2. සර්වර් එක දේශීය වෙලාව (ලංකාවේ වෙලාව) ලබා ගැනීම තහවුරු කිරීම
-        # සර්වර් එක UTC නම්, ලංකාවේ වෙලාව සකසා ගැනීමට පැය 5යි විනාඩි 30ක් එකතු කරයි
-        now_utc = datetime.datetime.utcnow()
-        srilanka_now = now_utc + datetime.timedelta(hours=5, minutes=30)
-        
-        # 3. කාල පරතරය තත්පරවලින් මැනීම (Absolute Difference)
+        srilanka_now = datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
         time_difference = (srilanka_now - last_ping_time).total_seconds()
-        
-        # විනාඩි 10ක් (තත්පර 600ක්) ඇතුළත නම් පමණක් සජීවී (True) ලෙස සලකයි
-        if 0 <= time_difference < 600: 
-            return True
-    except Exception as e:
-        pass
+        if 0 <= time_difference < 600: return True
+    except: pass
     return False
 
 # ලැයිස්තුවේ පෙන්වීමට අවසාන සජීවී තත්ත්වය (Status) සැකසීම
@@ -206,6 +194,7 @@ with tab2:
                     total_active_devices += 1
             if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                 att_info = live_boards_data[c_no]["attendance"]
+                # 📸 කැමරාවෙන් සිසුන් ගණන විනාඩි 15කට වරක් ඔන්ලයින් අප්ඩේට් වී ඇතිදැයි කාලය අනුව බලයි
                 if is_device_actually_active(att_info.get("last_captured")):
                     total_live_students += int(att_info.get("live_student_count", 0))
             
@@ -228,13 +217,40 @@ with tab2:
     if not app_hours_dict: app_hours_dict = {"No Software Tracked Yet": 0.0}
     software_chart_data = pd.DataFrame({"Software Application": list(app_hours_dict.keys()), "Total Active Execution (Hours)": list(app_hours_dict.values())})
     
+    # 💡 [නව විශේෂාංගය] භාවිත කාල පරාසය (දවස්, සති, මාස, අවුරුදු) තේරීමේ Dropdown උපක්‍රමය
+    st.markdown("### ⏱️ Select Time Analytics View")
+    time_view = st.selectbox(
+        "Display Usage Data In:",
+        ["Hours (පැය)", "Days (දවස්)", "Weeks (සති)", "Months (මාස)", "Years (අවුරුදු)"],
+        key="time_view_filter"
+    )
+    
+    conversion_factor = 1.0
+    unit_label = "Hours"
+    if "Days" in time_view: conversion_factor, unit_label = 24.0, "Days"
+    elif "Weeks" in time_view: conversion_factor, unit_label = 168.0, "Weeks"
+    elif "Months" in time_view: conversion_factor, unit_label = 730.0, "Months"
+    elif "Years" in time_view: conversion_factor, unit_label = 8760.0, "Years"
+
+    # ප්‍රස්තාර දත්ත නව ඒකකයට පරිවර්තනය කිරීම
+    software_chart_data["Total Active Execution"] = (software_chart_data["Total Active Execution (Hours)"] / conversion_factor).round(2)
+    software_chart_data_view = software_chart_data[["Software Application", "Total Active Execution"]].rename(
+        columns={"Total Active Execution": f"Total Active Execution ({unit_label})"}
+    )
+
     col_sw1, col_sw2 = st.columns(2)
-    with col_sw1: st.bar_chart(software_chart_data.set_index("Software Application"))
-    with col_sw2: st.dataframe(software_chart_data, use_container_width=True)
+    with col_sw1: 
+        st.markdown(f"**Software Usage Comparison ({unit_label})**")
+        st.bar_chart(software_chart_data_view.set_index("Software Application"))
+    with col_sw2: 
+        st.markdown(f"**Application Screen-Time Breakdown ({unit_label})**")
+        st.dataframe(software_chart_data_view, use_container_width=True)
             
     st.write("---")
-    st.markdown("**Overall Board Runtime Log (Hours)**")
-    st.bar_chart(df_filtered.set_index("Piriven Name")["Monthly Usage (Hours)"])
+    df_filtered_time = df_filtered.copy()
+    df_filtered_time[f"Usage ({unit_label})"] = (df_filtered_time["Monthly Usage (Hours)"] / conversion_factor).round(2)
+    st.markdown(f"**Overall Board Runtime Log ({unit_label})**")
+    st.bar_chart(df_filtered_time.set_index("Piriven Name")[f"Usage ({unit_label})"])
     
     st.write("---")
     st.markdown("### 📋 Device Registry & Quick Map Link")
@@ -287,12 +303,10 @@ with tab1:
                         else:
                             l_city = dev_info.get("live_city", "Unknown")
                         
-                        # ලොග්වන ඩිවයිස් එක පාට අනුව වෙන් කර සිතියම මත පෙන්වීම
                         if d_type == "Smart Board": icon_color = "green"
                         elif d_type == "Laptop": icon_color = "blue"
                         else: icon_color = "orange"
                         
-                        # ⭐ පරිපූර්ණ දෘඪාංග පිරිවිතරයන් ලස්සන ආකෘතිය
                         adv_spec = dev_info.get("spec_advanced", {})
                         popup_html = f"""
                         <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
@@ -341,7 +355,7 @@ with tab1:
                 requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b})
                 st.success("✅ Message Pushed Successfully!")
 
-# 💡 [සංශෝධනය] ටිකට් එක Solved වූ පසු චැට් එක සම්පූර්ණයෙන්ම වසා දමන (Lock කරන) පද්ධතිය
+# support ticket panel with closed chat restriction
 with tab3:
     st.subheader("🛠️ Technical Support & Ticket Interactive Chat Panel")
     
@@ -357,7 +371,6 @@ with tab3:
         res_t = requests.get(f"{FIREBASE_URL}support_tickets.json", timeout=4)
         if res_t.status_code == 200 and res_t.json():
             t_data = res_t.json()
-            
             ticket_index = 1
             
             for tid, det in t_data.items():
@@ -367,12 +380,10 @@ with tab3:
                 
                 status_label = "🔴 Pending" if det.get('status') == "Pending" else "🟢 Solved"
                 
-                # Expandable Job Card
                 with st.expander(f"🎫 TICKET #{ticket_index} | 🏛️ {p_name} - [{det.get('issue_type')}] (⏱️ {det.get('reported_at', 'N/A')}) - Status: {status_label}"):
                     st.markdown(f"**📝 Issue Description:** {det.get('description')}")
                     st.caption(f"Device Serial: {det.get('device_serial', 'N/A')} | DB Reference ID: {tid}")
                     
-                    # Live Discussion Engine
                     st.write("---")
                     st.markdown("💬 **Live Discussion / අමාත්‍යාංශ පිළිතුරු:**")
                     chats = det.get("chats", {})
@@ -381,7 +392,7 @@ with tab3:
                             sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 Piriven"
                             st.markdown(f"**{sender}:** {cmsg.get('msg')}  *<small>({cmsg.get('time')[11:16]})</small>*", unsafe_allow_html=True)
                     
-                    # 💡 [විසඳුම] ටිකට් එක Pending තත්ත්වයේ ඇත්නම් පමණක් චැට් එක පෙන්වීම, Solved නම් වැසීම
+                    # 💡 ටිකට් එක Pending තත්ත්වයේ ඇත්නම් පමණක් චැට් එක පෙන්වීම, Solved නම් වැසීම
                     if det.get('status') == "Pending":
                         chat_input = st.text_input("Type your response here / පිළිතුර සටහන් කරන්න:", key=f"chat_in_{tid}")
                         if st.button("↩️ Send Message", key=f"send_btn_{tid}"):
@@ -397,7 +408,6 @@ with tab3:
                         st.write("---")
                         st.button("Mark as Solved ✅", key=f"sol_{tid}", on_click=resolve_ticket, args=(tid,))
                     else:
-                        # 🔒 ටිකට් එක Solved නම් ඩෑෂ්බෝඩ් එකෙන්ද චැට් එක වසා දමයි
                         st.info("🔒 This ticket has been marked as solved. Chat is locked.")
                 
                 ticket_index += 1
