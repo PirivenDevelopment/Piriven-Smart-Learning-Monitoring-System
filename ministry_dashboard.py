@@ -27,6 +27,18 @@ SRI_LANKA_DISTRICTS = [
     "Monaragala", "Ratnapura", "Kegalle"
 ]
 
+# 💡 දශම පැය ගණන (Decimal Hours) "Xh : Ym" ආකෘතියට පත් කරන ශ්‍රිතය
+def convert_hours_to_hm_string(decimal_hours):
+    try:
+        hours = int(decimal_hours)
+        minutes = int(round((decimal_hours - hours) * 60))
+        if minutes == 60:
+            hours += 1
+            minutes = 0
+        return f"{hours}h : {minutes:02d}m"
+    except:
+        return "0h : 00m"
+
 # 💡 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කරන ස්මාර්ට් එන්ජිම
 def email_monthly_report_to_ministry(target_email, report_df):
     try:
@@ -224,6 +236,9 @@ with tab2:
     )
     st.write("---")
     
+    # 💡 [විසඳුම] "This" වෙනුවට Week, Month, Year සම්පූර්ණයෙන්ම පෙන්වීමට ලේබලය පිරිසිදු කිරීම
+    clean_time_label = time_frame.split(" (")[0] # උදා: "This Week" හෝ "Today" ලෙස පමණක් වෙන් කර ගනී
+    
     srilanka_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).date()
     filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
     
@@ -278,32 +293,27 @@ with tab2:
     except: pass
 
     display_title = "Selected Piriven" if selected_piriven != "All Piriven" else "All Island"
-    st.markdown(f"#### 🏛️ {display_title} Summary ({time_frame.split(' ')[0]})")
+    st.markdown(f"#### 🏛️ {display_title} Summary ({clean_time_label})")
     
-    # 💡 [විසඳුම] දශම පැය ගණන Hours : Minutes ආකෘතියට ඔටෝම හරවන එන්ජිම
-    display_hours = int(total_filtered_usage_hours)
-    display_minutes = int(round((total_filtered_usage_hours - display_hours) * 60))
-    if display_minutes == 60:
-        display_hours += 1
-        display_minutes = 0
-    runtime_string = f"{display_hours}h : {display_minutes:02d}m"
+    # දශම පැය ගණන "Hours : Minutes" (Xh : Ym) ආකෘතියට හැරවීම
+    runtime_string = convert_hours_to_hm_string(total_filtered_usage_hours)
     
-    # 💡 [නිවැරදි කිරීම] තීරු 4ක් (Columns 4) සාදා Registered Boards ගණන පැහැදිලිව ප්‍රදර්ශනය කිරීම
+    # 💡 [විසඳුම] තීරු 4ම නිවැරදිව පේළියට පෙළගස්වා Registered Boards (342) සහ සම්පූර්ණ කාලය ප්‍රදර්ශනය කිරීම
     c_reg, c_left, c_middle, c_right = st.columns(4) 
     c_reg.metric("Registered Boards", len(df_filtered))
-    c_left.metric(f"⏱️ Total Board Runtime ({time_frame.split(' ')[0]})", runtime_string)
+    c_left.metric(f"⏱️ Total Board Runtime ({clean_time_label})", runtime_string)
     c_middle.metric("🟢 Active Devices Right Now", total_active_devices)
     c_right.metric("👨‍🎓 Live Students Count Now", total_live_students) 
     st.write("---")
 
-    # 📥 තෝරාගත් පිරිවෙනේ දත්ත Excel/CSV ලෙස සැනින් බාගත කිරීමේ බොත්තම (Hours:Minutes සහිතව)
+    # 📥 බාගත වන වාර්තාවට ද සම්පූර්ණ කාල ලේබලය එකතු කරන ලදී
     summary_report_data = {
         "📊 Parameter": ["Selected Piriven Name", "Census Number", "Time Frame Filtered", "Total Board Runtime", "Active Devices Right Now", "Live Students Count Now"],
-        "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", time_frame, runtime_string, total_active_devices, total_live_students]
+        "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", clean_time_label, runtime_string, total_active_devices, total_live_students]
     }
     for app, hrs in app_hours_dict.items():
         summary_report_data["📊 Parameter"].append(f"Application Usage: {app}")
-        summary_report_data["📝 Value"].append(f"{hrs} Hours")
+        summary_report_data["📝 Value"].append(convert_hours_to_hm_string(hrs))
         
     df_summary_download = pd.DataFrame(summary_report_data)
     csv_bytes = df_summary_download.to_csv(index=False).encode('utf-8-sig')
@@ -316,25 +326,37 @@ with tab2:
     st.write("---")
 
     if not app_hours_dict: app_hours_dict = {"No Logs for this Period": 0.0}
+    
+    # Chart එක සඳහා දශම අගයන් තබා Breakdown වගුවට "Xh : Ym" ආකාරයට සකස් කිරීම
     software_chart_data = pd.DataFrame({"Software Application": list(app_hours_dict.keys()), "Total Execution (Hours)": list(app_hours_dict.values())})
+    
+    # വගුවේ අගයන් පැය සහ විනාඩි ලෙස වෙනස් කිරීම
+    software_table_data = software_chart_data.copy()
+    software_table_data["Total Execution (Formatted)"] = software_table_data["Total Execution (Hours)"].apply(convert_hours_to_hm_string)
+    software_table_data = software_table_data.drop(columns=["Total Execution (Hours)"])
     
     col_sw1, col_sw2 = st.columns(2)
     with col_sw1:
-        st.markdown(f"**Software Usage Comparison ({time_frame.split(' ')[0]})**")
+        st.markdown(f"**Software Usage Comparison ({clean_time_label})**")
         st.bar_chart(software_chart_data.set_index("Software Application"))
     with col_sw2:
-        st.markdown(f"**Application Log Breakdown (Hours)**")
-        st.dataframe(software_chart_data, use_container_width=True)
+        st.markdown(f"**Application Log Breakdown (Formatted)**")
+        st.dataframe(software_table_data, use_container_width=True)
             
     st.write("---")
     df_filtered["Filtered Usage (Hours)"] = [piriven_time_sum_dict.get(str(row["Census No"]).strip(), 0.0) for i, row in df_filtered.iterrows()]
-    st.markdown(f"**Overall Piriven Runtime Log ({time_frame.split(' ')[0]} - Hours)**")
+    st.markdown(f"**Overall Piriven Runtime Log ({clean_time_label} - Hours)**")
     st.bar_chart(df_filtered.set_index("Piriven Name")["Filtered Usage (Hours)"])
     
     st.write("---")
     st.markdown("### 📋 Device Registry & Quick Map Link")
     
-    styled_df = df_filtered.drop(columns=["Latitude", "Longitude", "Filtered Usage (Hours)"], errors="ignore").style.map(
+    # Main registry වගුවටද Formatted කාලය ඇතුළත් කිරීම
+    df_table_registry = df_filtered.copy()
+    df_table_registry["Monthly Usage (Formatted)"] = df_table_registry["Filtered Usage (Hours)"].apply(convert_hours_to_hm_string)
+    
+    columns_to_drop = ["Latitude", "Longitude", "Filtered Usage (Hours)", "Monthly Usage (Hours)"]
+    styled_df = df_table_registry.drop(columns=columns_to_drop, errors="ignore").style.map(
         lambda v: "background-color: #d1fae5; color: #065f46; font-weight: bold;" if v == "Active" else ("background-color: #fee2e2; color: #991b1b; font-weight: bold;" if v == "Offline" else ""),
         subset=["Status"]
     )
@@ -458,7 +480,7 @@ with tab3:
                     st.caption(f"Device Serial: {det.get('device_serial', 'N/A')} | DB Reference ID: {tid}")
                     
                     st.write("---")
-                    st.markdown("💬 **Live Discussion / අමාත්‍යාංශ පිළිතුරු:**")
+                    st.markdown("💬 **Live Discussion / අමාත්‍යාංශතුරු:**")
                     chats = det.get("chats", {})
                     if chats:
                         for cid, cmsg in chats.items():
@@ -489,7 +511,7 @@ with tab3:
 # 📧 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව ඊමේල් කිරීමේ පැනලය
 st.write("---")
 st.subheader("📧 Automated Ministry Email Support Desk")
-st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
+st.markdown("දිවයිනේ සියලුම পිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
 
 recipient_email = st.text_input("Enter Ministry Officer's Email Address:", "piriven.monitoring@moe.gov.lk")
 
@@ -513,7 +535,7 @@ if st.button("📤 Compilation & Send Monthly Report to Email"):
                     "Census No": c_no_str,
                     "Piriven Name": p_name_str,
                     "District": dist_str,
-                    "Total Runtime (Hours)": round(total_hours_all, 2),
+                    "Total Runtime (Formatted)": convert_hours_to_hm_string(total_hours_all),
                     "Status": "Monitored 🟢"
                 })
         except: pass
