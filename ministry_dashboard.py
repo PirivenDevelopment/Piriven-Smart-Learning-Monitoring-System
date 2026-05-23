@@ -236,7 +236,7 @@ with tab2:
     )
     st.write("---")
     
-    # 💡 [විසඳුම] "This" වෙනුවට Week, Month, Year ලේබලය සම්පූර්ණයෙන්ම වෙන් කර ගැනීම
+    # 💡 "This" වෙනුවට Week, Month, Year ලේබලය සම්පූර්ණයෙන්ම වෙන් කර ගැනීම
     clean_time_label = time_frame.split(" (")[0]
     
     srilanka_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).date()
@@ -244,6 +244,7 @@ with tab2:
     
     total_active_devices = 0
     total_live_students = 0
+    total_historical_student_impact = 0  # 💡 සමස්ත ඓතිහාසික ශිෂ්‍ය එකතුව ගබඩා කරන විචල්‍යය
     total_filtered_usage_hours = 0.0
     app_hours_dict = {}
     piriven_time_sum_dict = {c: 0.0 for c in filtered_census_nos}
@@ -256,6 +257,10 @@ with tab2:
             
             if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                 att_info = live_boards_data[c_no]["attendance"]
+                
+                # 🏛️ සර්වර් එකේ පවතින ඓතිහාසික ශිෂ්‍ය දත්ත (Cumulative Impact) එකතු කිරීම
+                total_historical_student_impact += int(att_info.get("cumulative_student_lessons", 0))
+                
                 if is_device_actually_active(att_info.get("last_captured")):
                     try:
                         capt_date = datetime.datetime.strptime(att_info.get("last_captured"), "%Y-%m-%d %H:%M:%S").date()
@@ -298,18 +303,19 @@ with tab2:
     # දශම පැය ගණන "Hours : Minutes" (Xh : Ym) ආකෘතියට හැරවීම
     runtime_string = convert_hours_to_hm_string(total_filtered_usage_hours)
     
-    # 💡 [නිවැරදි කිරීම] Registered Boards (342) ගණන සහිත තීරු 4 සැකැස්ම
-    c_reg, c_left, c_middle, c_right = st.columns(4) 
+    # 💡 [නිවැරදි කිරීම] තීරු 5ක් සාදා ඓතිහාසික ශිෂ්‍ය එකතුව (Cumulative Impact) ද එක් කරන ලදී
+    c_reg, c_left, c_middle, c_right, c_cum = st.columns(5) 
     c_reg.metric("Registered Boards", len(df_filtered))
     c_left.metric(f"⏱️ Total Board Runtime ({clean_time_label})", runtime_string)
     c_middle.metric("🟢 Active Devices Right Now", total_active_devices)
     c_right.metric("👨‍🎓 Live Students Count Now", total_live_students) 
+    c_cum.metric("🏛️ Total Cumulative Student Impact", f"{total_historical_student_impact} Students")
     st.write("---")
 
-    # 📥 බාගත වන වාර්තාවට ද පිරිසිදු කාල ලේබලය ඇතුළත් කිරීම
+    # 📥 බාගත වන වාර්තාවට ද ඓතිහාසික අගයන් එකතු කිරීම
     summary_report_data = {
-        "📊 Parameter": ["Selected Piriven Name", "Census Number", "Time Frame Filtered", "Total Board Runtime", "Active Devices Right Now", "Live Students Count Now"],
-        "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", clean_time_label, runtime_string, total_active_devices, total_live_students]
+        "📊 Parameter": ["Selected Piriven Name", "Census Number", "Time Frame Filtered", "Total Board Runtime", "Active Devices Right Now", "Live Students Count Now", "Total Cumulative Student Impact"],
+        "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", clean_time_label, runtime_string, total_active_devices, total_live_students, f"{total_historical_student_impact} Students"]
     }
     for app, hrs in app_hours_dict.items():
         summary_report_data["📊 Parameter"].append(f"Application Usage: {app}")
@@ -327,7 +333,7 @@ with tab2:
 
     if not app_hours_dict: app_hours_dict = {"No Logs for this Period": 0.0}
     
-    # 💡 [විසඳුම] ප්‍රස්ථාරයේ Y-Axis අගය ද දශම පැය වෙනුවට කෙලින්ම විනාඩි (Minutes) වලින් හැරවූ නව ඩේටාෆ්‍රේම් එක
+    # 💡 [විසඳුම] ප්‍රස්ථාරයේ අගයද දශම පැය වෙනුවට කෙලින්ම මිනිත්තු (Minutes) වලින් පෙන්වන නව ඩේටාෆ්‍රේම් එක
     chart_minutes_list = [int(round(hrs * 60)) for hrs in app_hours_dict.values()]
     software_chart_data = pd.DataFrame({
         "Software Application": list(app_hours_dict.keys()), 
