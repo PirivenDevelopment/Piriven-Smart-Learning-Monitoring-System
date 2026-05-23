@@ -330,14 +330,16 @@ with tab2:
     # Chart එක සඳහා දශම අගයන් තබා Breakdown වගුවට "Xh : Ym" ආකාරයට සකස් කිරීම
     software_chart_data = pd.DataFrame({"Software Application": list(app_hours_dict.keys()), "Total Execution (Hours)": list(app_hours_dict.values())})
     
-    # വගුවේ අගයන් පැය සහ විනාඩි ලෙස වෙනස් කිරීම
-    software_table_data = software_chart_data.copy()
-    software_table_data["Total Execution (Formatted)"] = software_table_data["Total Execution (Hours)"].apply(convert_hours_to_hm_string)
-    software_table_data = software_table_data.drop(columns=["Total Execution (Hours)"])
+    chart_minutes_list = [int(round(hrs * 60)) for hrs in app_hours_dict.values()]
+    software_chart_data = pd.DataFrame({
+        "Software Application": list(app_hours_dict.keys()), 
+        "Total Execution (Minutes)": chart_minutes_list
+    })
     
     col_sw1, col_sw2 = st.columns(2)
     with col_sw1:
-        st.markdown(f"**Software Usage Comparison ({clean_time_label})**")
+        st.markdown(f"**Software Usage Comparison (Minutes - {clean_time_label})**")
+        # 💡 දැන් ප්‍රස්ථාරයේ Y-Axis එක දශම වෙනුවට කෙලින්ම විනාඩි 26 ලෙස නිවැරදිව පෙන්වයි
         st.bar_chart(software_chart_data.set_index("Software Application"))
     with col_sw2:
         st.markdown(f"**Application Log Breakdown (Formatted)**")
