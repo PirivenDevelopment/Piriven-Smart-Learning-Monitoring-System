@@ -236,8 +236,8 @@ with tab2:
     )
     st.write("---")
     
-    # 💡 [විසඳුම] "This" වෙනුවට Week, Month, Year සම්පූර්ණයෙන්ම පෙන්වීමට ලේබලය පිරිසිදු කිරීම
-    clean_time_label = time_frame.split(" (")[0] # උදා: "This Week" හෝ "Today" ලෙස පමණක් වෙන් කර ගනී
+    # 💡 [විසඳුම] "This" වෙනුවට Week, Month, Year ලේබලය සම්පූර්ණයෙන්ම වෙන් කර ගැනීම
+    clean_time_label = time_frame.split(" (")[0]
     
     srilanka_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).date()
     filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
@@ -298,7 +298,7 @@ with tab2:
     # දශම පැය ගණන "Hours : Minutes" (Xh : Ym) ආකෘතියට හැරවීම
     runtime_string = convert_hours_to_hm_string(total_filtered_usage_hours)
     
-    # 💡 [විසඳුම] තීරු 4ම නිවැරදිව පේළියට පෙළගස්වා Registered Boards (342) සහ සම්පූර්ණ කාලය ප්‍රදර්ශනය කිරීම
+    # 💡 [නිවැරදි කිරීම] Registered Boards (342) ගණන සහිත තීරු 4 සැකැස්ම
     c_reg, c_left, c_middle, c_right = st.columns(4) 
     c_reg.metric("Registered Boards", len(df_filtered))
     c_left.metric(f"⏱️ Total Board Runtime ({clean_time_label})", runtime_string)
@@ -306,7 +306,7 @@ with tab2:
     c_right.metric("👨‍🎓 Live Students Count Now", total_live_students) 
     st.write("---")
 
-    # 📥 බාගත වන වාර්තාවට ද සම්පූර්ණ කාල ලේබලය එකතු කරන ලදී
+    # 📥 බාගත වන වාර්තාවට ද පිරිසිදු කාල ලේබලය ඇතුළත් කිරීම
     summary_report_data = {
         "📊 Parameter": ["Selected Piriven Name", "Census Number", "Time Frame Filtered", "Total Board Runtime", "Active Devices Right Now", "Live Students Count Now"],
         "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", clean_time_label, runtime_string, total_active_devices, total_live_students]
@@ -327,19 +327,22 @@ with tab2:
 
     if not app_hours_dict: app_hours_dict = {"No Logs for this Period": 0.0}
     
-    # Chart එක සඳහා දශම අගයන් තබා Breakdown වගුවට "Xh : Ym" ආකාරයට සකස් කිරීම
-    software_chart_data = pd.DataFrame({"Software Application": list(app_hours_dict.keys()), "Total Execution (Hours)": list(app_hours_dict.values())})
-    
+    # 💡 [විසඳුම] ප්‍රස්ථාරයේ Y-Axis අගය ද දශම පැය වෙනුවට කෙලින්ම විනාඩි (Minutes) වලින් හැරවූ නව ඩේටාෆ්‍රේම් එක
     chart_minutes_list = [int(round(hrs * 60)) for hrs in app_hours_dict.values()]
     software_chart_data = pd.DataFrame({
         "Software Application": list(app_hours_dict.keys()), 
         "Total Execution (Minutes)": chart_minutes_list
     })
     
+    # වගුවේ පේළි සඳහා "Xh : Ym" ආකෘතිය සකස් කිරීම
+    software_table_data = pd.DataFrame({
+        "Software Application": list(app_hours_dict.keys()),
+        "Total Execution (Formatted)": [convert_hours_to_hm_string(hrs) for hrs in app_hours_dict.values()]
+    })
+    
     col_sw1, col_sw2 = st.columns(2)
     with col_sw1:
         st.markdown(f"**Software Usage Comparison (Minutes - {clean_time_label})**")
-        # 💡 දැන් ප්‍රස්ථාරයේ Y-Axis එක දශම වෙනුවට කෙලින්ම විනාඩි 26 ලෙස නිවැරදිව පෙන්වයි
         st.bar_chart(software_chart_data.set_index("Software Application"))
     with col_sw2:
         st.markdown(f"**Application Log Breakdown (Formatted)**")
@@ -482,7 +485,7 @@ with tab3:
                     st.caption(f"Device Serial: {det.get('device_serial', 'N/A')} | DB Reference ID: {tid}")
                     
                     st.write("---")
-                    st.markdown("💬 **Live Discussion / අමාත්‍යාංශතුරු:**")
+                    st.markdown("💬 **Live Discussion / අමාත්‍යාංශ පිළිතුරු:**")
                     chats = det.get("chats", {})
                     if chats:
                         for cid, cmsg in chats.items():
@@ -513,7 +516,7 @@ with tab3:
 # 📧 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව ඊමේල් කිරීමේ පැනලය
 st.write("---")
 st.subheader("📧 Automated Ministry Email Support Desk")
-st.markdown("දිවයිනේ සියලුම পිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
+st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
 
 recipient_email = st.text_input("Enter Ministry Officer's Email Address:", "piriven.monitoring@moe.gov.lk")
 
