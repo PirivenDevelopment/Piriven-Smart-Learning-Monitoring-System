@@ -1,3 +1,4 @@
+import sys
 import requests
 import streamlit as st
 import streamlit.components.v1 as components  # 💡 JS ඔරලෝසුව සජීවීව පණගැන්වීමට
@@ -7,6 +8,11 @@ import pandas as pd
 import datetime
 import base64
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from urllib.parse import urlparse, parse_qs
 
 # ⚠️ Firebase API URL
@@ -20,6 +26,39 @@ SRI_LANKA_DISTRICTS = [
     "Kurunegala", "Puttalam", "Anuradhapura", "Polonnaruwa", "Badulla", 
     "Monaragala", "Ratnapura", "Kegalle"
 ]
+
+# 💡 [නව ශ්‍රිතය] සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කරන ස්මාර්ට් එන්ජිම
+def email_monthly_report_to_ministry(target_email, report_df):
+    try:
+        from_email = "info.pirivendevelopment@gmail.com"  # පද්ධතියේ නිල Gmail ලිපිනය
+        password = "your-secure-app-password"            # 💡 ඔබ සතු Gmail App Password එකක් මෙතනට දමන්න
+        
+        msg = MIMEMultipart()
+        msg['From'] = from_email
+        msg['To'] = target_email
+        msg['Subject'] = f"🏛️ Ministry Official Status Report: {datetime.datetime.now().strftime('%B %Y')}"
+        
+        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් CSV වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        # CSV ගොනුව ඇමුණුමක් ලෙස එකතු කිරීම (Attachment Layer)
+        csv_data = report_df.to_csv(index=False, encoding='utf-8-sig')
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(csv_data.encode('utf-8-sig'))
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f"attachment; filename= Monthly_Usage_Report_{datetime.date.today()}.csv")
+        msg.attach(part)
+        
+        # Secure SMTP Connection
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(from_email, password)
+        server.sendmail(from_email, target_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        st.error(f"❌ ඊමේල් පද්ධතියේ දෝෂයකි: {e}")
+        return False
 
 def process_youtube_link(url_or_id):
     url_str = url_or_id.strip()
@@ -64,7 +103,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 පරිශීලකයාගේ පරිගණකයේ නියම වෙලාව පෙන්වන සජීවී ඔරලෝසු ව්‍යුහය
 col_title, col_clock = st.columns([4, 1])
 with col_title:
     st.markdown("<h2 style='color: #1a365d; margin-top: -10px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
@@ -100,7 +138,6 @@ try:
     if res2.status_code == 200: cloud_excel_data = res2.json()
 except: pass
 
-# Sidebar
 st.sidebar.header("📁 Data Source Setup")
 uploaded_file = st.sidebar.file_uploader("Upload Piriven Excel Registry (.xlsx)", type=["xlsx"])
 df_usage = None
@@ -142,7 +179,6 @@ if df_usage is None and cloud_excel_data:
 if df_usage is None:
     df_usage = pd.DataFrame({"Census No": ["0542"], "Piriven Name": ["Sample Pirivena"], "District": ["Colombo"], "Zone": ["Central"], "Status": ["Offline"], "Latitude": [6.9271], "Longitude": [79.8612], "Monthly Usage (Hours)": [0]})
 
-# 💡 [විසඳුම] Cloud සර්වර් සහ ලංකාවේ වෙලාව අතර Timezone පැටලීම විසඳූ සජීවී කාල පරීක්ෂකය
 def is_device_actually_active(last_ping_str):
     try:
         if not last_ping_str: return False
@@ -153,7 +189,6 @@ def is_device_actually_active(last_ping_str):
     except: pass
     return False
 
-# ලැයිස්තුවේ පෙන්වීමට අවසාන සජීවී තත්ත්වය (Status) සැකසීම
 live_census_list = []
 for c_id, devices in live_boards_data.items():
     if isinstance(devices, dict):
@@ -165,7 +200,6 @@ for c_id, devices in live_boards_data.items():
 df_usage["Status"] = ["Active" if str(row["Census No"]).strip() in live_census_list else "Offline" for i, row in df_usage.iterrows()]
 census_to_name = dict(zip(df_usage["Census No"].astype(str), df_usage["Piriven Name"]))
 
-# Filters
 st.sidebar.write("---")
 st.sidebar.header("🔍 Live Filters")
 dist_list = ["All Island"] + sorted([d for d in df_usage["District"].unique().tolist() if d and d != "Nan"])
@@ -180,40 +214,46 @@ tab1, tab2, tab3 = st.tabs(["🗺️ Live Map & Remote Control", "📊 Analytics
 
 with tab2:
     st.subheader("📊 Performance Analytics")
-    c_left, c_middle, c_right = st.columns(3) 
-    c_left.metric("Registered Boards", len(df_filtered))
+    
+    st.markdown("### ⏱️ Select Log Time Frame (භාවිතා කළ කාල සීමාව තෝරන්න)")
+    time_frame = st.radio(
+        "Filter Metrics and Logs By:",
+        ["Today (අද දවසේ)", "This Week (මේ සතියේ)", "This Month (මේ මාසයේ)", "Total Historical Log (සමස්ත ඉතිහාසය)"],
+        horizontal=True,
+        key="history_radio_tab2"
+    )
+    st.write("---")
+    
+    srilanka_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).date()
+    filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
     
     total_active_devices = 0
     total_live_students = 0
-    filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
+    total_filtered_usage_hours = 0.0
+    app_hours_dict = {}
+    piriven_time_sum_dict = {c: 0.0 for c in filtered_census_nos}
     
     for c_no in filtered_census_nos:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
             for dev_id, dev_info in live_boards_data[c_no].items():
                 if dev_id != "attendance" and isinstance(dev_info, dict) and is_device_actually_active(dev_info.get("last_ping")):
                     total_active_devices += 1
+            
             if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                 att_info = live_boards_data[c_no]["attendance"]
                 if is_device_actually_active(att_info.get("last_captured")):
-                    total_live_students += int(att_info.get("live_student_count", 0))
-            
-    c_middle.metric("Total Active Devices Now", total_active_devices)
-    c_right.metric("👨‍🎓 Total Live Students Learning Now", total_live_students) 
-    st.write("---")
-    
-    # 💡 [සංශෝධනය] Historical Date-wise Logs තේරීම සඳහා වන රේඩියෝ බොත්තම් පෙළ
-    st.markdown("### ⏱️ Select Log Time Frame (භාවිතා කළ කාල සීමාව තෝරන්න)")
-    time_frame = st.radio(
-        "Filter Logs By:",
-        ["Today (අද දවසේ)", "This Week (මේ සතියේ)", "This Month (මේ මාසයේ)", "Total Historical Log (සමස්ත ඉතිහාසය)"],
-        horizontal=True,
-        key="history_radio_tab2"
-    )
-    
-    srilanka_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).date()
-    app_hours_dict = {}
-    piriven_time_sum_dict = {c: 0.0 for c in filtered_census_nos}
-    
+                    try:
+                        capt_date = datetime.datetime.strptime(att_info.get("last_captured"), "%Y-%m-%d %H:%M:%S").date()
+                        is_att_valid = False
+                        if time_frame.startswith("Today") and capt_date == srilanka_today: is_att_valid = True
+                        elif time_frame.startswith("This Week") and (srilanka_today - capt_date).days <= 7: is_att_valid = True
+                        elif time_frame.startswith("This Month") and capt_date.month == srilanka_today.month and capt_date.year == srilanka_today.year: is_att_valid = True
+                        elif time_frame.startswith("Total"): is_att_valid = True
+                        
+                        if is_att_valid:
+                            total_live_students += int(att_info.get("live_student_count", 0))
+                    except: pass
+
     try:
         res_apps = requests.get(f"{FIREBASE_URL}software_analytics.json").json()
         if res_apps:
@@ -231,9 +271,39 @@ with tab2:
                         
                         if is_valid and isinstance(apps_data, dict):
                             for app_name, minutes in apps_data.items():
-                                app_hours_dict[app_name] = app_hours_dict.get(app_name, 0.0) + round(minutes / 60.0, 2)
-                                piriven_time_sum_dict[c_no] += round(minutes / 60.0, 2)
+                                hours_val = round(minutes / 60.0, 2)
+                                app_hours_dict[app_name] = app_hours_dict.get(app_name, 0.0) + hours_val
+                                piriven_time_sum_dict[c_no] += hours_val
+                                total_filtered_usage_hours += hours_val
     except: pass
+
+    display_title = "Selected Piriven" if selected_piriven != "All Piriven" else "All Island"
+    st.markdown(f"#### 🏛️ {display_title} Summary ({time_frame.split(' ')[0]})")
+    
+    c_left, c_middle, c_right = st.columns(3) 
+    c_left.metric(f"⏱️ Total Board Runtime ({time_frame.split(' ')[0]})", f"{round(total_filtered_usage_hours, 1)} Hours")
+    c_middle.metric("🟢 Active Devices Right Now", total_active_devices)
+    c_right.metric("👨‍🎓 Live Students Count Now", total_live_students) 
+    st.write("---")
+
+    # 📥 [නව විශේෂාංගය 1] තෝරාගත් පිරිවෙනේ දත්ත Excel/CSV ලෙස සැනින් බාගත කිරීමේ බොත්තම
+    summary_report_data = {
+        "📊 Parameter": ["Selected Piriven Name", "Census Number", "Time Frame Filtered", "Total Board Runtime", "Active Devices Right Now", "Live Students Count Now"],
+        "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", time_frame, f"{round(total_filtered_usage_hours, 1)} Hours", total_active_devices, total_live_students]
+    }
+    for app, hrs in app_hours_dict.items():
+        summary_report_data["📊 Parameter"].append(f"Application Usage: {app}")
+        summary_report_data["📝 Value"].append(f"{hrs} Hours")
+        
+    df_summary_download = pd.DataFrame(summary_report_data)
+    csv_bytes = df_summary_download.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(
+        label=f"📥 Download {selected_piriven.split(',')[0]} Summary Analytics Report (CSV)",
+        data=csv_bytes,
+        file_name=f"Piriven_Report_{df_filtered['Census No'].iloc[0] if selected_piriven != 'All Piriven' else 'All'}_{datetime.date.today()}.csv",
+        mime="text/csv"
+    )
+    st.write("---")
 
     if not app_hours_dict: app_hours_dict = {"No Logs for this Period": 0.0}
     software_chart_data = pd.DataFrame({"Software Application": list(app_hours_dict.keys()), "Total Execution (Hours)": list(app_hours_dict.values())})
@@ -260,7 +330,6 @@ with tab2:
     )
     st.dataframe(styled_df, use_container_width=True)
 
-# 💡 [විසඳුම] වැරදි ලොකේෂන් පෙන්වීම වැළැක්වීමට නිල Excel Registry ඛණ්ඩාංකයන්ම කේන්ද්‍රය ලෙස භාවිත කිරීම
 map_center = [7.8731, 80.7718]
 map_zoom = 8
 if selected_piriven != "All Piriven" and not df_filtered.empty:
@@ -293,7 +362,6 @@ with tab1:
                         is_any_device_live = True
                         d_type = dev_info.get("device_type", "Smart Board")
                         
-                        # 💡 [විසඳුම] වැරදි IP පිහිටීම් මඟහැරීමට නිල ලියාපදිංචි (Excel Registry) ඛණ්ඩාංකයන්ම සිතියමට ලබා දීම
                         l_lat = r["Latitude"]
                         l_lon = r["Longitude"]
                         
@@ -301,7 +369,6 @@ with tab1:
                         elif d_type == "Laptop": icon_color = "blue"
                         else: icon_color = "orange"
                         
-                        # 💡 [විසඳුම] ඔබ ඉල්ලූ පරිදි පෙර පැවති උසස් දෘඪාංග විස්තර වගුවේ (Hardware Specs Table) ලස්සන ආකෘතිය නැවත ස්ථාපනය කිරීම
                         adv_spec = dev_info.get("spec_advanced", {})
                         popup_html = f"""
                         <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
@@ -352,7 +419,6 @@ with tab1:
         if st.button("📢 PUSH LIVE NOTIFICATION"):
             if ann_t and ann_b: requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b}); st.success("✅ Message Pushed Successfully!")
 
-# support ticket panel with closed chat restriction
 with tab3:
     st.subheader("🛠️ Technical Support & Ticket Interactive Chat Panel")
     
@@ -409,6 +475,45 @@ with tab3:
                 ticket_index += 1
         else: st.info("No reported tickets found.")
     except Exception as e: st.error(f"Error loading tickets: {e}")
+
+# 📧 [නව විශේෂාංගය 2] සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව ඊමේල් කිරීමේ පැනලය
+st.write("---")
+st.subheader("📧 Automated Ministry Email Support Desk")
+st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
+
+recipient_email = st.text_input("Enter Ministry Officer's Email Address:", "piriven.monitoring@moe.gov.lk")
+
+if st.button("📤 Compilation & Send Monthly Report to Email"):
+    with st.spinner("දිවයිනේ සියලුම පිරිවෙන්වල මාසික දත්ත විශ්ලේෂණය කරමින් පවතී... ⏳"):
+        compiled_list = []
+        try:
+            res_apps_all = requests.get(f"{FIREBASE_URL}software_analytics.json").json()
+            for index, row in df_usage.iterrows():
+                c_no_str = str(row.get("Census No", "")).split('.')[0].strip()
+                p_name_str = row.get("Piriven Name", "Unknown")
+                dist_str = row.get("District", "Unknown")
+                
+                total_hours_all = 0.0
+                if res_apps_all and c_no_str in res_apps_all:
+                    for date_str, apps_data in res_apps_all[c_no_str].items():
+                        if isinstance(apps_data, dict):
+                            total_hours_all += sum(apps_data.values()) / 60.0
+                            
+                compiled_list.append({
+                    "Census No": c_no_str,
+                    "Piriven Name": p_name_str,
+                    "District": dist_str,
+                    "Total Runtime (Hours)": round(total_hours_all, 2),
+                    "Status": "Monitored 🟢"
+                })
+        except: pass
+        
+        df_monthly_master = pd.DataFrame(compiled_list)
+        
+        # ඊමේල් එන්ජිම ක්‍රියාත්මක කිරීම
+        success = email_monthly_report_to_ministry(recipient_email, df_monthly_master)
+        if success:
+            st.success(f"✅ {datetime.datetime.now().strftime('%B %Y')} මාසික ප්‍රගති වාර්තාව සාර්ථකව {recipient_email} වෙත ඊමේල් කරන ලදී!")
 
 # Footer Section
 st.write("---")
