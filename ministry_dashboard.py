@@ -27,7 +27,7 @@ SRI_LANKA_DISTRICTS = [
     "Monaragala", "Ratnapura", "Kegalle"
 ]
 
-# 💡 [නව ශ්‍රිතය] සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කරන ස්මාර්ට් එන්ජිම
+# 💡 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කරන ස්මාර්ට් එන්ජිම
 def email_monthly_report_to_ministry(target_email, report_df):
     try:
         from_email = "info.pirivendevelopment@gmail.com"  # පද්ධතියේ නිල Gmail ලිපිනය
@@ -280,16 +280,26 @@ with tab2:
     display_title = "Selected Piriven" if selected_piriven != "All Piriven" else "All Island"
     st.markdown(f"#### 🏛️ {display_title} Summary ({time_frame.split(' ')[0]})")
     
-    c_left, c_middle, c_right = st.columns(3) 
-    c_left.metric(f"⏱️ Total Board Runtime ({time_frame.split(' ')[0]})", f"{round(total_filtered_usage_hours, 1)} Hours")
+    # 💡 [විසඳුම] දශම පැය ගණන Hours : Minutes ආකෘතියට ඔටෝම හරවන එන්ජිම
+    display_hours = int(total_filtered_usage_hours)
+    display_minutes = int(round((total_filtered_usage_hours - display_hours) * 60))
+    if display_minutes == 60:
+        display_hours += 1
+        display_minutes = 0
+    runtime_string = f"{display_hours}h : {display_minutes:02d}m"
+    
+    # 💡 [නිවැරදි කිරීම] තීරු 4ක් (Columns 4) සාදා Registered Boards ගණන පැහැදිලිව ප්‍රදර්ශනය කිරීම
+    c_reg, c_left, c_middle, c_right = st.columns(4) 
+    c_reg.metric("Registered Boards", len(df_filtered))
+    c_left.metric(f"⏱️ Total Board Runtime ({time_frame.split(' ')[0]})", runtime_string)
     c_middle.metric("🟢 Active Devices Right Now", total_active_devices)
     c_right.metric("👨‍🎓 Live Students Count Now", total_live_students) 
     st.write("---")
 
-    # 📥 [නව විශේෂාංගය 1] තෝරාගත් පිරිවෙනේ දත්ත Excel/CSV ලෙස සැනින් බාගත කිරීමේ බොත්තම
+    # 📥 තෝරාගත් පිරිවෙනේ දත්ත Excel/CSV ලෙස සැනින් බාගත කිරීමේ බොත්තම (Hours:Minutes සහිතව)
     summary_report_data = {
         "📊 Parameter": ["Selected Piriven Name", "Census Number", "Time Frame Filtered", "Total Board Runtime", "Active Devices Right Now", "Live Students Count Now"],
-        "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", time_frame, f"{round(total_filtered_usage_hours, 1)} Hours", total_active_devices, total_live_students]
+        "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", time_frame, runtime_string, total_active_devices, total_live_students]
     }
     for app, hrs in app_hours_dict.items():
         summary_report_data["📊 Parameter"].append(f"Application Usage: {app}")
@@ -476,7 +486,7 @@ with tab3:
         else: st.info("No reported tickets found.")
     except Exception as e: st.error(f"Error loading tickets: {e}")
 
-# 📧 [නව විශේෂාංගය 2] සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව ඊමේල් කිරීමේ පැනලය
+# 📧 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව ඊමේල් කිරීමේ පැනලය
 st.write("---")
 st.subheader("📧 Automated Ministry Email Support Desk")
 st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
