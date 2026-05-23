@@ -194,7 +194,6 @@ with tab2:
                     total_active_devices += 1
             if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                 att_info = live_boards_data[c_no]["attendance"]
-                # 📸 කැමරාවෙන් සිසුන් ගණන විනාඩි 15කට වරක් ඔන්ලයින් අප්ඩේට් වී ඇතිදැයි කාලය අනුව බලයි
                 if is_device_actually_active(att_info.get("last_captured")):
                     total_live_students += int(att_info.get("live_student_count", 0))
             
@@ -217,14 +216,16 @@ with tab2:
     if not app_hours_dict: app_hours_dict = {"No Software Tracked Yet": 0.0}
     software_chart_data = pd.DataFrame({"Software Application": list(app_hours_dict.keys()), "Total Active Execution (Hours)": list(app_hours_dict.values())})
     
-    # 💡 [නව විශේෂාංගය] භාවිත කාල පරාසය (දවස්, සති, මාස, අවුරුදු) තේරීමේ Dropdown උපක්‍රමය
-    st.markdown("### ⏱️ Select Time Analytics View")
-    time_view = st.selectbox(
-        "Display Usage Data In:",
+    # 💡 [විසඳුම] පරිශීලකයා ඉල්ලූ පරිදි දවස්, සති, මාස, අවුරුදු ක්ෂණිකව තේරීමට හැකි රේඩියෝ බොත්තම් පෙළ (Smart Radio Buttons)
+    st.markdown("### ⏱️ Select Time Frame (කාල රාමුව තෝරන්න)")
+    time_view = st.radio(
+        "Filter Usage Data By:",
         ["Hours (පැය)", "Days (දවස්)", "Weeks (සති)", "Months (මාස)", "Years (අවුරුදු)"],
-        key="time_view_filter"
+        horizontal=True,
+        key="time_frame_radio"
     )
     
+    # රේඩියෝ බොත්තමේ ටික් එක අනුව අගයන් පරිවර්තනය වන ගණිතමය සූත්‍රය
     conversion_factor = 1.0
     unit_label = "Hours"
     if "Days" in time_view: conversion_factor, unit_label = 24.0, "Days"
@@ -232,11 +233,14 @@ with tab2:
     elif "Months" in time_view: conversion_factor, unit_label = 730.0, "Months"
     elif "Years" in time_view: conversion_factor, unit_label = 8760.0, "Years"
 
-    # ප්‍රස්තාර දත්ත නව ඒකකයට පරිවර්තනය කිරීම
+    # ප්‍රස්ථාර දත්ත නව ඒකකයට ගලපා පරිවර්තනය කිරීම
     software_chart_data["Total Active Execution"] = (software_chart_data["Total Active Execution (Hours)"] / conversion_factor).round(2)
     software_chart_data_view = software_chart_data[["Software Application", "Total Active Execution"]].rename(
         columns={"Total Active Execution": f"Total Active Execution ({unit_label})"}
     )
+
+    display_name = "All Island" if selected_piriven == "All Piriven" else selected_piriven
+    st.markdown(f"#### 🖥️ Smart Board Software Analytics ({display_name}) - in {unit_label}")
 
     col_sw1, col_sw2 = st.columns(2)
     with col_sw1: 
@@ -255,7 +259,6 @@ with tab2:
     st.write("---")
     st.markdown("### 📋 Device Registry & Quick Map Link")
     
-    # ඇක්ටිව් පිරිවෙන්වල වර්ණය වගුව තුළ පැහැදිලිව කොළ සහ රතු පැහැයෙන් පෙන්වීම
     styled_df = df_filtered.drop(columns=["Latitude", "Longitude"], errors="ignore").style.map(
         lambda v: "background-color: #d1fae5; color: #065f46; font-weight: bold;" if v == "Active" else ("background-color: #fee2e2; color: #991b1b; font-weight: bold;" if v == "Offline" else ""),
         subset=["Status"]
@@ -341,21 +344,23 @@ with tab1:
 
     with col_ctrl:
         st.subheader("📢 Command Center")
-        yt_input = st.text_input("YouTube URL:")
+        yt_input = st.text_input("YouTube URL (Video, Playlist or Channel):")
         if st.button("🚀 BROADCAST TO ALL BOARDS"):
             if yt_input:
-                requests.put(f"{FIREBASE_URL}current_lesson.json", json=process_youtube_link(yt_input))
-                st.success("✅ Broadcast Successful!")
+                link_data = process_youtube_link(yt_input)
+                try:
+                    requests.put(f"{FIREBASE_URL}current_lesson.json", json=link_data)
+                    st.success(f"✅ Broadcast Successful! Type: {link_data['type'].capitalize()}")
+                except: st.error("❌ Cloud Connection Error.")
+            else: st.warning("⚠️ Please paste a YouTube link.")
                         
         st.write("---")
         ann_t = st.text_input("Announcement Title:")
         ann_b = st.text_area("Message Body:")
         if st.button("📢 PUSH LIVE NOTIFICATION"):
-            if ann_t and ann_b: 
-                requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b})
-                st.success("✅ Message Pushed Successfully!")
+            if ann_t and ann_b: requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b}); st.success("✅ Message Pushed Successfully!")
 
-# support ticket panel with closed chat restriction
+# support ticket panel
 with tab3:
     st.subheader("🛠️ Technical Support & Ticket Interactive Chat Panel")
     
@@ -392,7 +397,6 @@ with tab3:
                             sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 Piriven"
                             st.markdown(f"**{sender}:** {cmsg.get('msg')}  *<small>({cmsg.get('time')[11:16]})</small>*", unsafe_allow_html=True)
                     
-                    # 💡 ටිකට් එක Pending තත්ත්වයේ ඇත්නම් පමණක් චැට් එක පෙන්වීම, Solved නම් වැසීම
                     if det.get('status') == "Pending":
                         chat_input = st.text_input("Type your response here / පිළිතුර සටහන් කරන්න:", key=f"chat_in_{tid}")
                         if st.button("↩️ Send Message", key=f"send_btn_{tid}"):
