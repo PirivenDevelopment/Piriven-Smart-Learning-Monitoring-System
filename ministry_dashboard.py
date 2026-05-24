@@ -10,6 +10,7 @@ import base64
 import os
 import smtplib
 import hashlib                                 # 💡 මුරපද ආරක්ෂිතව කේතාංකනය කිරීමට (SHA-256)
+import io                                      # 💡 Memory එක ඇතුළත Excel ෆයිල් සෑදීමට
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -78,25 +79,30 @@ def convert_hours_to_hm_string(decimal_hours):
     except:
         return "0h : 00m"
 
-# 💡 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කරන ස්මාර්ට් එන්ජිම
+# 💡 [යාවත්කාලීන] CSV වෙනුවට සැබෑ පිරිසිදු EXCEL (XLSX) ගොනුවක් සාදා ඊමේල් කරන නව එන්ජිම
 def email_monthly_report_to_ministry(target_email, report_df):
     try:
         from_email = "info.pirivendevelopment@gmail.com"  
-        password = "your-secure-app-password"  
+        password = "your-secure-app-password"  # 💡 ඔබේ Gmail App Password එක මෙතැනට දමන්න
         
         msg = MIMEMultipart()
         msg['From'] = from_email
         msg['To'] = target_email
         msg['Subject'] = f"🏛️ Ministry Official Status Report: {datetime.datetime.now().strftime('%B %Y')}"
         
-        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් CSV වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
+        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් නිල Excel (.xlsx) වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
-        csv_data = report_df.to_csv(index=False, encoding='utf-8-sig')
+        # Memory එක ඇතුළත සැබෑ Excel බයිට්ස් (XLSX Bytes) නිර්මාණය කිරීම
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            report_df.to_excel(writer, index=False, sheet_name="Usage Report")
+        excel_data = excel_buffer.getvalue()
+        
         part = MIMEBase('application', 'octet-stream')
-        part.set_payload(csv_data.encode('utf-8-sig'))
+        part.set_payload(excel_data)
         encoders.encode_base64(part)
-        part.add_header('Content-Disposition', f"attachment; filename= Monthly_Usage_Report_{datetime.date.today()}.csv")
+        part.add_header('Content-Disposition', f"attachment; filename= Monthly_Usage_Report_{datetime.date.today()}.xlsx")
         msg.attach(part)
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -417,7 +423,7 @@ with tabs[1]:
     c_cum.metric("🏛️ Total Cumulative Student Impact", f"{total_historical_student_impact} Students")
     st.write("---")
 
-    # 💡 [නව විශේෂාංගය] විස්තරාත්මක බොත්තම සහිත LEADERBOARD ENGINE
+    # GAMIFIED LEADERBOARD INTERFACE
     st.markdown(f"### 🏆 Piriven Performance Leaderboard ({clean_time_label})")
     df_leaderboard = df_filtered.copy()
     df_leaderboard["Usage (Minutes)"] = [int(round(piriven_time_sum_dict.get(str(row["Census No"]).strip(), 0.0) * 60)) for i, row in df_leaderboard.iterrows()]
@@ -432,8 +438,7 @@ with tabs[1]:
         else:
             st.info("No active app records found to display Top 10.")
             
-        # 💡 [නව බොත්තම] සමස්ත පිරිවෙන් දත්ත පිළිවෙළට දිග හැරීමටExpander එකක් භාවිත කිරීම (Smart Button Alternative)
-        with st.expander("🔍 Click to View Full Leaderboard Breakdown (සමස්ත පිරිවෙන් ප්‍රමුඛතා ලැයිස්තුව විස්තරාත්මකව බලන්න)"):
+        with St.expander("🔍 Click to View Full Leaderboard Breakdown (සමස්ත පිරිවෙන් ප්‍රමුඛතා ලැයිස්තුව විස්තරාත්මකව බලන්න)"):
             df_full_breakdown = df_leaderboard.sort_values(by="Usage (Minutes)", ascending=False)[["Census No", "Piriven Name", "District", "Zone", "Usage (Minutes)", "Formatted Runtime"]]
             st.dataframe(df_full_breakdown, use_container_width=True)
             
@@ -456,12 +461,18 @@ with tabs[1]:
         summary_report_data["📝 Value"].append(convert_hours_to_hm_string(hrs))
         
     df_summary_download = pd.DataFrame(summary_report_data)
-    csv_bytes = df_summary_download.to_csv(index=False).encode('utf-8-sig')
+    
+    # 💡 [යාවත්කාලීන] බාගත වන (Download) වාර්තාව ද සෘජුවම EXCEL (.xlsx) ගොනුවක් බවට පත් කිරීම
+    dl_buffer = io.BytesIO()
+    with pd.ExcelWriter(dl_buffer, engine='openpyxl') as dl_writer:
+        df_summary_download.to_excel(dl_writer, index=False, sheet_name="Summary")
+    dl_excel_bytes = dl_buffer.getvalue()
+
     st.download_button(
-        label=f"📥 Download {selected_piriven.split(',')[0]} Summary Analytics Report (CSV)",
-        data=csv_bytes,
-        file_name=f"Piriven_Report_{df_filtered['Census No'].iloc[0] if selected_piriven != 'All Piriven' else 'All'}_{datetime.date.today()}.csv",
-        mime="text/csv"
+        label=f"📥 Download {selected_piriven.split(',')[0]} Summary Analytics Excel Report (.xlsx)",
+        data=dl_excel_bytes,
+        file_name=f"Piriven_Report_{df_filtered['Census No'].iloc[0] if selected_piriven != 'All Piriven' else 'All'}_{datetime.date.today()}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     st.write("---")
 
@@ -556,7 +567,7 @@ with tabs[0]:
                                 <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Chipset</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('chipset', 'N/A')}</td></tr>
                                 <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Processor</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('processor', 'N/A')}</td></tr>
                                 <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Frequency / L3 Cache</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('frequency', 'N/A')} / {adv_spec.get('cache', 'N/A')}</td></tr>
-                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>RAM / Storage</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('ram', 'N/A')} / {adv_spec.get('harddisk', 'N/A')}</td></tr>
+                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>RAM / Storage</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('ram', 'N/A')} / {harddisk', 'N/A')}</td></tr>
                                 <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>OS Version</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('os', 'N/A')}</td></tr>
                             </table>
                         </div>
@@ -674,6 +685,44 @@ if st.session_state["user_role"] == "super_admin":
                         st.error("⚠️ මෙම පරිශීලක නාමය දැනටමත් පද්ධතියේ පවතී.")
                     else:
                         st.error("❌ Cloud සර්වර් දෝෂයකි.")
+
+# 📧 [යාවත්කාලීන] සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කිරීමේ පැනලය (XLSX සක්‍රිය කරන ලදී)
+st.write("---")
+st.subheader("📧 Automated Ministry Email Support Desk")
+st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
+
+recipient_email = st.text_input("Enter Ministry Officer's Email Address:", "piriven.monitoring@moe.gov.lk")
+
+if st.button("📤 Compilation & Send Monthly Report to Email"):
+    with st.spinner("දිවයිනේ සියලුම පිරිවෙන්වල මාසික දත්ත විශ්ලේෂණය කරමින් පවතී... ⏳"):
+        compiled_list = []
+        try:
+            res_apps_all = requests.get(f"{FIREBASE_URL}software_analytics.json").json()
+            for index, row in df_usage.iterrows():
+                c_no_str = str(row.get("Census No", "")).split('.')[0].strip()
+                p_name_str = row.get("Piriven Name", "Unknown")
+                dist_str = row.get("District", "Unknown")
+                
+                total_hours_all = 0.0
+                if res_apps_all and c_no_str in res_apps_all:
+                    for date_str, apps_data in res_apps_all[c_no_str].items():
+                        if isinstance(apps_data, dict):
+                            total_hours_all += sum(apps_data.values()) / 60.0
+                            
+                compiled_list.append({
+                    "Census No": c_no_str,
+                    "Piriven Name": p_name_str,
+                    "District": dist_str,
+                    "Total Runtime (Formatted)": convert_hours_to_hm_string(total_hours_all),
+                    "Status": "Monitored 🟢"
+                })
+        except: pass
+        
+        df_monthly_master = pd.DataFrame(compiled_list)
+        
+        success = email_monthly_report_to_ministry(recipient_email, df_monthly_master)
+        if success:
+            st.success(f"✅ {datetime.datetime.now().strftime('%B %Y')} මාසික ප්‍රගති වාර්තාව සාර්ථකව {recipient_email} වෙත Excel ලේඛනයක් ලෙස යොමු කරන ලදී!")
 
 # Footer Section
 st.write("---")
