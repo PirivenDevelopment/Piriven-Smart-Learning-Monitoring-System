@@ -330,7 +330,7 @@ pir_list = ["All Piriven"] + sorted(df_step1["Piriven Name"].unique().tolist())
 selected_piriven = st.sidebar.selectbox("Select Piriven Name:", pir_list)
 df_filtered = df_step1[df_step1["Piriven Name"] == selected_piriven] if selected_piriven != "All Piriven" else df_step1.copy()
 
-# Super Admin හට පමණක් පෙනෙන පරිදි 4 වැනි ටැබ් එකක් (Create Admin Users) නිර්මාණය කිරීම
+# Tabs List
 tabs_list = ["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets & Live Chat"]
 if st.session_state["user_role"] == "super_admin":
     tabs_list.append("📝 Create Users (පාලන බලතල)")
@@ -441,6 +441,21 @@ with tabs[1]:
             df_full_breakdown = df_leaderboard.sort_values(by="Usage (Minutes)", ascending=False)[["Census No", "Piriven Name", "District", "Zone", "Usage (Minutes)", "Formatted Runtime"]]
             st.dataframe(df_full_breakdown, use_container_width=True)
             
+            # 💡 [නව නිවැරදි කිරීම - පිරිසිදු EXCEL ඩවුන්ලෝඩ් බොත්තම] 
+            # Leaderboard Breakdown වගුව සෘජුවම සැබෑ Excel (.xlsx) ලේඛනයක් ලෙසම බාගත කරගැනීමේ පද්ධතිය
+            lead_buffer = io.BytesIO()
+            with pd.ExcelWriter(lead_buffer, engine='openpyxl') as lead_writer:
+                df_full_breakdown.to_excel(lead_writer, index=False, sheet_name="Leaderboard")
+            lead_excel_bytes = lead_buffer.getvalue()
+
+            st.download_button(
+                label="📥 Download Full Leaderboard Performance Report (.xlsx)",
+                data=lead_excel_bytes,
+                file_name=f"Piriven_Leaderboard_{clean_time_label.replace(' ', '_')}_{datetime.date.today()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="leaderboard_excel_download_unique_btn"
+            )
+            
     with col_lead2:
         st.markdown("**🔴 Zero Usage Warning List (භාවිතය 0%ක් වූ අවදානම් පිරිවෙන් ලැයිස්තුව)**")
         df_zero = df_leaderboard[df_leaderboard["Usage (Minutes)"] == 0][["Census No", "Piriven Name", "District", "Zone", "Status"]]
@@ -461,7 +476,6 @@ with tabs[1]:
         
     df_summary_download = pd.DataFrame(summary_report_data)
     
-    # 💡 [නිරාකරණය කරන ලදී] බ්‍රවුසරය මඟින් CSV ලෙස හඳුනා ගැනීම වැළැක්වීමට සහ සැබෑ Excel බයිට්ස් සැකසීමට openpyxl එන්ජිම නිවැරදිව භාවිත කිරීම
     dl_buffer = io.BytesIO()
     with pd.ExcelWriter(dl_buffer, engine='openpyxl') as dl_writer:
         df_summary_download.to_excel(dl_writer, index=False, sheet_name="Summary")
@@ -471,8 +485,8 @@ with tabs[1]:
         label=f"📥 Download {selected_piriven.split(',')[0]} Summary Analytics Excel Report (.xlsx)",
         data=dl_excel_bytes,
         file_name=f"Piriven_Report_{df_filtered['Census No'].iloc[0] if selected_piriven != 'All Piriven' else 'All'}_{datetime.date.today()}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # 💡 Excel නිල දත්ත ආකෘතිය (MIME Type)
-        key="excel_download_unique_btn"
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="summary_excel_download_unique_btn"
     )
     st.write("---")
 
