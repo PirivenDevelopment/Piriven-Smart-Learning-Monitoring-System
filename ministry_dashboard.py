@@ -34,27 +34,26 @@ def make_hashes(password):
 
 # 💡 Cloud (Firebase) එකෙන් පරිශීලකයා පරික්ෂා කිරීම සහ නව පරිශීලකයන් ඇතුළත් කිරීමේ ස්මාර්ට් ශ්‍රිත
 def check_admin_login(user, pwd):
-    # 💡 [විසඳුම] Master Admin ගිණුම (Username: admin / Password: moe@piriven123)
+    # Master Admin ගිණුම (Username: admin / Password: moe@piriven123)
     if user == "admin" and make_hashes(pwd) == "7757ee92a17058be91a134bf47738f711202e864ee91d8b7b25e11f7c32bf17b":
+        st.session_state["user_role"] = "super_admin"  # 💡 Super Admin බලතල ලබා දීම
         return True
     try:
-        # Firebase එකෙන් අලුතින් සාදපු අනෙකුත් පරිශීලකයන්ගේ දත්ත කියවීම
         res = requests.get(f"{FIREBASE_URL}system_admins/{user}.json", timeout=4)
         if res.status_code == 200 and res.json():
             db_pwd_hash = res.json().get("password_hash")
             if make_hashes(pwd) == db_pwd_hash:
+                st.session_state["user_role"] = "standard_admin"  # 💡 Standard Admin බලතල ලබා දීම
                 return True
     except: pass
     return False
 
 def create_new_admin_user(new_user, new_pwd):
     try:
-        # පවතින පරිශීලකයෙක්දැයි පරික්ෂා කිරීම
         check_res = requests.get(f"{FIREBASE_URL}system_admins/{new_user}.json", timeout=3)
         if check_res.status_code == 200 and check_res.json():
             return "exists"
         
-        # ආරක්ෂිතව කේතාංකනය කර දත්ත Firebase එකට ඇතුළත් කිරීම
         pwd_hash = make_hashes(new_pwd)
         user_node = {
             "username": new_user,
@@ -90,7 +89,7 @@ def email_monthly_report_to_ministry(target_email, report_df):
         msg['To'] = target_email
         msg['Subject'] = f"🏛️ Ministry Official Status Report: {datetime.datetime.now().strftime('%B %Y')}"
         
-        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් CSV වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
+        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත পිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් CSV වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
         csv_data = report_df.to_csv(index=False, encoding='utf-8-sig')
@@ -129,6 +128,10 @@ st.set_page_config(page_title="Ministry Admin Dashboard", layout="wide")
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
+if "user_role" not in st.session_state:
+    st.session_state["user_role"] = "standard_admin"
+if "current_user" not in st.session_state:
+    st.session_state["current_user"] = ""
 
 # --- 🔐 LOGIN & USER CREATION INTERFACE ---
 if not st.session_state["logged_in"]:
@@ -136,47 +139,20 @@ if not st.session_state["logged_in"]:
     st.markdown("<h4 style='text-align: center; color: #475569;'>Piriven Smart Board Central Monitoring Control Center</h4>", unsafe_allow_html=True)
     st.write("---")
     
-    # 💡 [නව විශේෂාංගය] Login සහ Create User සඳහා වෙන් වෙන් වශයෙන් Tabs දෙකක් නිර්මාණය කිරීම
-    login_tab, signup_tab = st.tabs(["🔒 Admin Login Panel", "📝 Create New Admin User Account"])
-    
-    with login_tab:
-        col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-        with col_l2:
-            st.markdown("### 🔐 Admin Authentication Sign In")
-            username = st.text_input("Username (පරිශීලක නාමය):", key="login_user")
-            password = st.text_input("Password (මුරපදය):", type="password", key="login_pwd")
-            
-            if st.button("🔑 LOGIN TO COMMAND CENTER"):
-                if check_admin_login(username, password):
-                    st.session_state["logged_in"] = True
-                    st.success("✅ Login Successful! Loading dashboard...")
-                    st.rerun()
-                else:
-                    st.error("❌ වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්!")
-                    
-    with signup_tab:
-        col_s1, col_s2, col_s3 = st.columns([1, 2, 1])
-        with col_s2:
-            st.markdown("### 📝 Register New Ministry Officer Account")
-            st.info("💡 සටහන: මෙතැනින් සාදන නව ගිණුම්වල දත්ත ස්වයංක්‍රීයවම ආරක්ෂිතව ක්ලවුඩ් (Firebase) එක තුළ තැන්පත් වේ.")
-            new_username = st.text_input("Choose Username (අලුත් නම):", key="sig_user").strip().lower()
-            new_password = st.text_input("Choose Password (අලුත් මුරපදය):", type="password", key="sig_pwd")
-            confirm_password = st.text_input("Confirm Password (මුරපදය නැවත ඇතුළත් කරන්න):", type="password", key="sig_cpwd")
-            
-            if st.button("📤 CREATE OFFICIAL ACCOUNT"):
-                if not new_username or not new_password:
-                    st.warning("⚠️ කරුණාකර පරිශීලක නාමය සහ මුරපදය ඇතුළත් කරන්න.")
-                elif new_password != confirm_password:
-                    st.error("❌ මුරපද දෙක එකිනෙකට ගැලපෙන්නේ නැත!")
-                else:
-                    # ශ්‍රිතය ක්‍රියාත්මක කර ප්‍රතිඵලය බැලීම
-                    status = create_new_admin_user(new_username, new_password)
-                    if status == "success":
-                        st.success(f"✅ User Account '{new_username}' සාර්ථකව සාදන ලදී! දැන් ඔබට Login පැනලයෙන් ඇතුළු විය හැක.")
-                    elif status == "exists":
-                        st.error("⚠️ මෙම පරිශීලක නාමය (Username) දැනටමත් පද්ධතියේ පවතී. වෙනත් නමක් භාවිත කරන්න.")
-                    else:
-                        st.error("❌ Cloud සර්වර් දෝෂයකි. කරුණාකර පසුව උත්සාහ කරන්න.")
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    with col_l2:
+        st.markdown("### 🔐 Admin Authentication Sign In")
+        username = st.text_input("Username (පරිශීලක නාමය):", key="login_user").strip().lower()
+        password = st.text_input("Password (මුරපදය):", type="password", key="login_pwd")
+        
+        if st.button("🔑 LOGIN TO COMMAND CENTER"):
+            if check_admin_login(username, password):
+                st.session_state["logged_in"] = True
+                st.session_state["current_user"] = username
+                st.success("✅ Login Successful! Loading dashboard...")
+                st.rerun()
+            else:
+                st.error("❌ වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්!")
     st.stop()
 
 # --- 🏛️ MAIN DASHBOARD INTERFACE (LOGIN වූ පසු පමණක් දර්ශනය වේ) ---
@@ -209,10 +185,13 @@ st.markdown("""
 col_title, col_clock = st.columns([4, 1])
 with col_title:
     st.markdown("<h2 style='color: #1a365d; margin-top: -10px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #4a5568; font-size: 14px; font-weight: bold; margin-top: -15px;'>Central Control, Analytics & Monitoring Dashboard</p>", unsafe_allow_html=True)
+    # ලොග් වී සිටින නිලධාරියාගේ නම සහ බලතල මට්ටම ඉහළින්ම පෙන්වීම
+    role_badge = "👑 SUPER ADMIN" if st.session_state["user_role"] == "super_admin" else "👨‍💼 OFFICER"
+    st.markdown(f"<p style='color: #4a5568; font-size: 14px; font-weight: bold; margin-top: -15px;'>User: <span style='color:#2563eb;'>{st.session_state['current_user'].upper()}</span> ({role_badge}) | Central Monitoring Command Center</p>", unsafe_allow_html=True)
 with col_clock:
     if st.button("🔒 LOGOUT"):
         st.session_state["logged_in"] = False
+        st.session_state["user_role"] = "standard_admin"
         st.rerun()
 
     st.markdown("<p style='text-align:center; margin-bottom:0px; font-weight:bold; color:#475569; font-size:12px;'>💻 DEVICE TIME</p>", unsafe_allow_html=True)
@@ -245,43 +224,48 @@ try:
     if res2.status_code == 200: cloud_excel_data = res2.json()
 except: pass
 
+# --- 📁 DATA SOURCE SETUP SIDEBAR (👑 SUPER ADMIN ට විතරක් පෙනේ) ---
 st.sidebar.header("📁 Data Source Setup")
-uploaded_file = st.sidebar.file_uploader("Upload Piriven Excel Registry (.xlsx)", type=["xlsx"])
-df_usage = None
+if st.session_state["user_role"] == "super_admin":
+    uploaded_file = st.sidebar.file_uploader("Upload Piriven Excel Registry (.xlsx)", type=["xlsx"])
+    df_usage = None
 
-if uploaded_file:
-    try:
-        df_raw = pd.read_excel(uploaded_file)
-        df_raw.columns = df_raw.columns.str.strip()
-        
-        df_raw["Census No"] = df_raw["Census No"].fillna("").astype(str).str.strip().apply(lambda x: x.split('.')[0] if '.' in x else x)
-        df_raw["Piriven Name"] = df_raw["Piriven Name"].fillna("").astype(str).str.strip()
-        df_raw["District"] = df_raw["District"].fillna("").astype(str).str.strip().str.title() 
-        df_raw["Zone"] = df_raw["Zone"].fillna("").astype(str).str.strip().str.title() if "Zone" in df_raw.columns else df_raw["District"]
-        df_raw["Latitude"] = df_raw["Latitude"].fillna(0.0)
-        df_raw["Longitude"] = df_raw["Longitude"].fillna(0.0)
-        df_raw["Monthly Usage (Hours)"] = df_raw["Monthly Usage (Hours)"].fillna(0)
+    if uploaded_file:
+        try:
+            df_raw = pd.read_excel(uploaded_file)
+            df_raw.columns = df_raw.columns.str.strip()
+            
+            df_raw["Census No"] = df_raw["Census No"].fillna("").astype(str).str.strip().apply(lambda x: x.split('.')[0] if '.' in x else x)
+            df_raw["Piriven Name"] = df_raw["Piriven Name"].fillna("").astype(str).str.strip()
+            df_raw["District"] = df_raw["District"].fillna("").astype(str).str.strip().str.title() 
+            df_raw["Zone"] = df_raw["Zone"].fillna("").astype(str).str.strip().str.title() if "Zone" in df_raw.columns else df_raw["District"]
+            df_raw["Latitude"] = df_raw["Latitude"].fillna(0.0)
+            df_raw["Longitude"] = df_raw["Longitude"].fillna(0.0)
+            df_raw["Monthly Usage (Hours)"] = df_raw["Monthly Usage (Hours)"].fillna(0)
 
-        for index, row in df_raw.iterrows():
-            lat, lon = float(row.get("Latitude", 0.0)), float(row.get("Longitude", 0.0))
-            if lat > 70.0 and lon < 15.0:
-                df_raw.at[index, "Latitude"], df_raw.at[index, "Longitude"] = lon, lat
+            for index, row in df_raw.iterrows():
+                lat, lon = float(row.get("Latitude", 0.0)), float(row.get("Longitude", 0.0))
+                if lat > 70.0 and lon < 15.0:
+                    df_raw.at[index, "Latitude"], df_raw.at[index, "Longitude"] = lon, lat
 
-        df_temp = pd.DataFrame()
-        df_temp["Census No"], df_temp["Piriven Name"] = df_raw["Census No"], df_raw["Piriven Name"]
-        df_temp["District"] = [([d for d in SRI_LANKA_DISTRICTS if d.lower() == x.lower()] + ["Other/Unclassified"])[0] for x in df_raw["District"]]
-        df_temp["Zone"], df_temp["Latitude"], df_temp["Longitude"], df_temp["Monthly Usage (Hours)"] = df_raw["Zone"], df_raw["Latitude"], df_raw["Longitude"], df_raw["Monthly Usage (Hours)"]
-        
-        requests.put(f"{FIREBASE_URL}ministry_excel_registry.json", json=df_temp.to_dict(orient="records"))
-        df_usage = df_temp.copy()
-        st.sidebar.success("✅ Excel Saved to Cloud!")
-    except Exception as e: st.sidebar.error(f"Error: {e}")
+            df_temp = pd.DataFrame()
+            df_temp["Census No"], df_temp["Piriven Name"] = df_raw["Census No"], df_raw["Piriven Name"]
+            df_temp["District"] = [([d for d in SRI_LANKA_DISTRICTS if d.lower() == x.lower()] + ["Other/Unclassified"])[0] for x in df_raw["District"]]
+            df_temp["Zone"], df_temp["Latitude"], df_temp["Longitude"], df_temp["Monthly Usage (Hours)"] = df_raw["Zone"], df_raw["Latitude"], df_raw["Longitude"], df_raw["Monthly Usage (Hours)"]
+            
+            requests.put(f"{FIREBASE_URL}ministry_excel_registry.json", json=df_temp.to_dict(orient="records"))
+            df_usage = df_temp.copy()
+            st.sidebar.success("✅ Excel Saved to Cloud!")
+        except Exception as e: st.sidebar.error(f"Error: {e}")
+else:
+    # 👨‍💼 Standard Admin ලොග් වූ විට Uploader එක වෙනුවට ආරක්ෂිත පණිවිඩයක් පෙන්වීම
+    st.sidebar.warning("🔒 Excel Uploading Restricted. Only accessible by Master Super Admin.")
 
-if df_usage is None and cloud_excel_data:
+if cloud_excel_data:
     df_usage = pd.DataFrame(cloud_excel_data)
     df_usage["Census No"] = df_usage["Census No"].astype(str).str.strip().apply(lambda x: x.split('.')[0] if '.' in x else x)
     df_usage["District"] = df_usage["District"].astype(str).str.strip().str.title()
-    st.sidebar.info("☁️ Registry Loaded from Cloud")
+    st.sidebar.info("☁️ Registry Active from Cloud")
 
 if df_usage is None:
     df_usage = pd.DataFrame({"Census No": ["0542"], "Piriven Name": ["Sample Pirivena"], "District": ["Colombo"], "Zone": ["Central"], "Status": ["Offline"], "Latitude": [6.9271], "Longitude": [79.8612], "Monthly Usage (Hours)": [0]})
@@ -317,9 +301,14 @@ pir_list = ["All Piriven"] + sorted(df_step1["Piriven Name"].unique().tolist())
 selected_piriven = st.sidebar.selectbox("Select Piriven Name:", pir_list)
 df_filtered = df_step1[df_step1["Piriven Name"] == selected_piriven] if selected_piriven != "All Piriven" else df_step1.copy()
 
-tab1, tab2, tab3 = st.tabs(["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets & Live Chat"])
+# 💡 [යාවත්කාලීන] Super Admin හට පමණක් පෙනෙන පරිදි 4 වැනි ටැබ් එකක් (Create Admin Users) නිර්මාණය කිරීම
+tabs_list = ["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets & Live Chat"]
+if st.session_state["user_role"] == "super_admin":
+    tabs_list.append("📝 Create Users (පාලන බලතල)")
 
-with tab2:
+tabs = st.tabs(tabs_list)
+
+with tabs[1]:
     st.subheader("📊 Performance Analytics")
     
     st.markdown("### ⏱️ Select Log Time Frame (භාවිතා කළ කාල සීමාව තෝරන්න)")
@@ -467,7 +456,7 @@ if selected_piriven != "All Piriven" and not df_filtered.empty:
         map_center = [float(first_row["Latitude"]), float(first_row["Longitude"])]
         map_zoom = 14
 
-with tab1:
+with tabs[0]:
     col_map, col_ctrl = st.columns([3, 2])
     with col_map:
         st.subheader("Live Board Tracking")
@@ -548,7 +537,7 @@ with tab1:
         if st.button("📢 PUSH LIVE NOTIFICATION"):
             if ann_t and ann_b: requests.put(f"{FIREBASE_URL}latest_announcement.json", json={"title": ann_t, "body": ann_b}); st.success("✅ Message Pushed Successfully!")
 
-with tab3:
+with tabs[2]:
     st.subheader("🛠️ Technical Support & Ticket Interactive Chat Panel")
     
     def resolve_ticket(ticket_id):
@@ -605,43 +594,30 @@ with tab3:
         else: st.info("No reported tickets found.")
     except Exception as e: st.error(f"Error loading tickets: {e}")
 
-# 📧 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව ඊමේල් කිරීමේ පැනලය
-st.write("---")
-st.subheader("📧 Automated Ministry Email Support Desk")
-st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
-
-recipient_email = st.text_input("Enter Ministry Officer's Email Address:", "piriven.monitoring@moe.gov.lk")
-
-if st.button("📤 Compilation & Send Monthly Report to Email"):
-    with st.spinner("දිවයිනේ සියලුම පිරිවෙන්වල මාසික දත්ත විශ්ලේෂණය කරමින් පවතී... ⏳"):
-        compiled_list = []
-        try:
-            res_apps_all = requests.get(f"{FIREBASE_URL}software_analytics.json").json()
-            for index, row in df_usage.iterrows():
-                c_no_str = str(row.get("Census No", "")).split('.')[0].strip()
-                p_name_str = row.get("Piriven Name", "Unknown")
-                dist_str = row.get("District", "Unknown")
-                
-                total_hours_all = 0.0
-                if res_apps_all and c_no_str in res_apps_all:
-                    for date_str, apps_data in res_apps_all[c_no_str].items():
-                        if isinstance(apps_data, dict):
-                            total_hours_all += sum(apps_data.values()) / 60.0
-                            
-                compiled_list.append({
-                    "Census No": c_no_str,
-                    "Piriven Name": p_name_str,
-                    "District": dist_str,
-                    "Total Runtime (Formatted)": convert_hours_to_hm_string(total_hours_all),
-                    "Status": "Monitored 🟢"
-                })
-        except: pass
-        
-        df_monthly_master = pd.DataFrame(compiled_list)
-        
-        success = email_monthly_report_to_ministry(recipient_email, df_monthly_master)
-        if success:
-            st.success(f"✅ {datetime.datetime.now().strftime('%B %Y')} මාසික ප්‍රගති වාර්තාව සාර්ථකව {recipient_email} වෙත ඊමේල් කරන ලදී!")
+# --- 📝 CREATE USERS PANEL INTERFACE (👑 SUPER ADMIN ට පමණක් පෙනේ) ---
+if st.session_state["user_role"] == "super_admin":
+    with tabs[3]:
+        col_s1, col_s2, col_s3 = st.columns([1, 2, 1])
+        with col_s2:
+            st.markdown("### 📝 Register New Ministry Officer Account")
+            st.info("💡 සටහන: මෙම පැනලය දර්ශනය වන්නේ Master Super Admin හට පමණි. සාමාන්‍ය නිලධාරීන්ට මෙය දර්ශනය නොවේ.")
+            new_username = st.text_input("Choose Username (අලුත් පරිශීලක නම):", key="sig_user").strip().lower()
+            new_password = st.text_input("Choose Password (අලුත් මුරපදය):", type="password", key="sig_pwd")
+            confirm_password = st.text_input("Confirm Password:", type="password", key="sig_cpwd")
+            
+            if st.button("📤 CREATE OFFICIAL ACCOUNT"):
+                if not new_username or not new_password:
+                    st.warning("⚠️ කරුණාකර සියලු විස්තර සපුරන්න.")
+                elif new_password != confirm_password:
+                    st.error("❌ මුරපද දෙක එකිනෙකට ගැලපෙන්නේ නැත!")
+                else:
+                    status = create_new_admin_user(new_username, new_password)
+                    if status == "success":
+                        st.success(f"✅ User Account '{new_username}' සාර්ථකව සාදන ලදී!")
+                    elif status == "exists":
+                        st.error("⚠️ මෙම පරිශීලක නාමය දැනටමත් පද්ධතියේ පවතී.")
+                    else:
+                        st.error("❌ Cloud සර්වර් දෝෂයකි.")
 
 # Footer Section
 st.write("---")
