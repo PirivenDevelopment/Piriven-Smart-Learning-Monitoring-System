@@ -461,6 +461,7 @@ with tabs[1]:
         
     df_summary_download = pd.DataFrame(summary_report_data)
     
+    # 💡 [නිරාකරණය කරන ලදී] බ්‍රවුසරය මඟින් CSV ලෙස හඳුනා ගැනීම වැළැක්වීමට සහ සැබෑ Excel බයිට්ස් සැකසීමට openpyxl එන්ජිම නිවැරදිව භාවිත කිරීම
     dl_buffer = io.BytesIO()
     with pd.ExcelWriter(dl_buffer, engine='openpyxl') as dl_writer:
         df_summary_download.to_excel(dl_writer, index=False, sheet_name="Summary")
@@ -470,7 +471,8 @@ with tabs[1]:
         label=f"📥 Download {selected_piriven.split(',')[0]} Summary Analytics Excel Report (.xlsx)",
         data=dl_excel_bytes,
         file_name=f"Piriven_Report_{df_filtered['Census No'].iloc[0] if selected_piriven != 'All Piriven' else 'All'}_{datetime.date.today()}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # 💡 Excel නිල දත්ත ආකෘතිය (MIME Type)
+        key="excel_download_unique_btn"
     )
     st.write("---")
 
@@ -554,7 +556,6 @@ with tabs[0]:
                         
                         adv_spec = dev_info.get("spec_advanced", {})
                         
-                        # 💡 [නිවැරදි කිරීම] Syntax Error එක ඉවත් කර සකස් කළ දෝෂ රහිත පේළිය
                         popup_html = f"""
                         <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
                             <h3 style='margin: 0 0 5px 0; color: #1e293b;'>🏛️ {r['Piriven Name']}</h3>
