@@ -34,16 +34,17 @@ def make_hashes(password):
 
 # 💡 Cloud (Firebase) එකෙන් පරිශීලකයා පරික්ෂා කිරීම සහ නව පරිශීලකයන් ඇතුළත් කිරීමේ ස්මාර්ට් ශ්‍රිත
 def check_admin_login(user, pwd):
-    # Master Admin ගිණුම (Username: admin / Password: moe@piriven123)
+    # 💡 [විසඳුම] Firebase හි දත්ත නොමැති වුවද සෘජුවම ලොග් විය හැකි නිල Master Super Admin ගිණුම
     if user == "admin" and make_hashes(pwd) == "7757ee92a17058be91a134bf47738f711202e864ee91d8b7b25e11f7c32bf17b":
-        st.session_state["user_role"] = "super_admin"  # 💡 Super Admin බලතල ලබා දීම
+        st.session_state["user_role"] = "super_admin"  # Super Admin බලතල ලබා දීම
         return True
+        
     try:
         res = requests.get(f"{FIREBASE_URL}system_admins/{user}.json", timeout=4)
         if res.status_code == 200 and res.json():
             db_pwd_hash = res.json().get("password_hash")
             if make_hashes(pwd) == db_pwd_hash:
-                st.session_state["user_role"] = "standard_admin"  # 💡 Standard Admin බලතල ලබා දීම
+                st.session_state["user_role"] = "standard_admin"  # Standard Admin බලතල ලබා දීම
                 return True
     except: pass
     return False
@@ -133,26 +134,53 @@ if "user_role" not in st.session_state:
 if "current_user" not in st.session_state:
     st.session_state["current_user"] = ""
 
-# --- 🔐 LOGIN & USER CREATION INTERFACE ---
+# --- 🔐 LOGIN & USER CREATION INTERFACE (පළමු වර පිවිසෙන තිරය) ---
 if not st.session_state["logged_in"]:
     st.markdown("<h2 style='text-align: center; color: #1a365d;'>🏛️ Ministry of Education - Sri Lanka</h2>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align: center; color: #475569;'>Piriven Smart Board Central Monitoring Control Center</h4>", unsafe_allow_html=True)
     st.write("---")
     
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-        st.markdown("### 🔐 Admin Authentication Sign In")
-        username = st.text_input("Username (පරිශීලක නාමය):", key="login_user").strip().lower()
-        password = st.text_input("Password (මුරපදය):", type="password", key="login_pwd")
-        
-        if st.button("🔑 LOGIN TO COMMAND CENTER"):
-            if check_admin_login(username, password):
-                st.session_state["logged_in"] = True
-                st.session_state["current_user"] = username
-                st.success("✅ Login Successful! Loading dashboard...")
-                st.rerun()
-            else:
-                st.error("❌ වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්!")
+    # 💡 [නව විශේෂාංගය] ලොග් වීමට පෙර තිරය මත Sign In සහ Sign Up වෙන් වෙන් වශයෙන්Tabs දෙකක් ලෙස පෙන්වීම
+    auth_tabs = st.tabs(["🔒 Admin Sign In (ඇතුළු වීමේ පැනලය)", "📝 Create Admin Account (නව ගිණුමක් සෑදීම)"])
+    
+    with auth_tabs[0]:
+        col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+        with col_l2:
+            st.markdown("### 🔐 Identity Authentication")
+            username = st.text_input("Username (පරිශීලක නාමය):", key="login_user").strip().lower()
+            password = st.text_input("Password (මුරපදය):", type="password", key="login_pwd")
+            
+            if st.button("🔑 LOGIN TO COMMAND CENTER"):
+                if check_admin_login(username, password):
+                    st.session_state["logged_in"] = True
+                    st.session_state["current_user"] = username
+                    st.success("✅ Login Successful! Loading dashboard...")
+                    st.rerun()
+                else:
+                    st.error("❌ වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්! කරුණාකර නැවත උත්සාහ කරන්න.")
+                    
+    with auth_tabs[1]:
+        col_s1, col_s2, col_s3 = st.columns([1, 2, 1])
+        with col_s2:
+            st.markdown("### 📝 Register New Ministry Officer")
+            st.info("💡 සටහන: මෙතැනින් සාදන ගිණුම්වල දත්ත ස්වයංක්‍රීයවම ආරක්ෂිතව කේතාංකනය (Encrypt) වී Firebase Cloud එක තුළ තැන්පත් වේ.")
+            new_username = st.text_input("Choose Username (නව පරිශීලක නම):", key="sig_user").strip().lower()
+            new_password = st.text_input("Choose Password (නව මුරපදය):", type="password", key="sig_pwd")
+            confirm_password = st.text_input("Confirm New Password:", type="password", key="sig_cpwd")
+            
+            if st.button("📤 CREATE OFFICIAL ACCOUNT"):
+                if not new_username or not new_password:
+                    st.warning("⚠️ කරුණාකර පරිශීලක නාමය සහ මුරපදය ඇතුළත් කරන්න.")
+                elif new_password != confirm_password:
+                    st.error("❌ මුරපද දෙක එකිනෙකට ගැලපෙන්නේ නැත!")
+                else:
+                    status = create_new_admin_user(new_username, new_password)
+                    if status == "success":
+                        st.success(f"✅ User Account '{new_username}' සාර්ථකව සාදන ලදී! දැන් ඔබට 'Sign In' පැනලයෙන් ඇතුළු විය හැක.")
+                    elif status == "exists":
+                        st.error("⚠️ මෙම පරිශීලක නාමය දැනටමත් පද්ධතියේ පවතී. වෙනත් නමක් භාවිත කරන්න.")
+                    else:
+                        st.error("❌ Cloud සර්වර් දෝෂයකි. කරුණාකර පසුව උත්සාහ කරන්න.")
     st.stop()
 
 # --- 🏛️ MAIN DASHBOARD INTERFACE (LOGIN වූ පසු පමණක් දර්ශනය වේ) ---
@@ -185,7 +213,6 @@ st.markdown("""
 col_title, col_clock = st.columns([4, 1])
 with col_title:
     st.markdown("<h2 style='color: #1a365d; margin-top: -10px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
-    # ලොග් වී සිටින නිලධාරියාගේ නම සහ බලතල මට්ටම ඉහළින්ම පෙන්වීම
     role_badge = "👑 SUPER ADMIN" if st.session_state["user_role"] == "super_admin" else "👨‍💼 OFFICER"
     st.markdown(f"<p style='color: #4a5568; font-size: 14px; font-weight: bold; margin-top: -15px;'>User: <span style='color:#2563eb;'>{st.session_state['current_user'].upper()}</span> ({role_badge}) | Central Monitoring Command Center</p>", unsafe_allow_html=True)
 with col_clock:
@@ -258,7 +285,6 @@ if st.session_state["user_role"] == "super_admin":
             st.sidebar.success("✅ Excel Saved to Cloud!")
         except Exception as e: st.sidebar.error(f"Error: {e}")
 else:
-    # 👨‍💼 Standard Admin ලොග් වූ විට Uploader එක වෙනුවට ආරක්ෂිත පණිවිඩයක් පෙන්වීම
     st.sidebar.warning("🔒 Excel Uploading Restricted. Only accessible by Master Super Admin.")
 
 if cloud_excel_data:
@@ -301,7 +327,7 @@ pir_list = ["All Piriven"] + sorted(df_step1["Piriven Name"].unique().tolist())
 selected_piriven = st.sidebar.selectbox("Select Piriven Name:", pir_list)
 df_filtered = df_step1[df_step1["Piriven Name"] == selected_piriven] if selected_piriven != "All Piriven" else df_step1.copy()
 
-# 💡 [යාවත්කාලීන] Super Admin හට පමණක් පෙනෙන පරිදි 4 වැනි ටැබ් එකක් (Create Admin Users) නිර්මාණය කිරීම
+# Super Admin හට පමණක් පෙනෙන පරිදි 4 වැනි ටැබ් එකක් (Create Admin Users) නිර්මාණය කිරීම
 tabs_list = ["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets & Live Chat"]
 if st.session_state["user_role"] == "super_admin":
     tabs_list.append("📝 Create Users (පාලන බලතල)")
