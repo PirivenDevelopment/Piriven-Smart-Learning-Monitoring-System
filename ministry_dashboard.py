@@ -25,7 +25,7 @@ SRI_LANKA_DISTRICTS = [
     "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", 
     "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", 
     "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara", "Trincomalee", 
-    "Kurunegala", "Puttalam", "Anuradhapura", "Polonnaruwa", "Badulla", 
+    "Kurunegala", "Puttalam", "Anuradhapura", "Polonovaruwa", "Badulla", 
     "Monaragala", "Ratnapura", "Kegalle"
 ]
 
@@ -90,7 +90,7 @@ def email_monthly_report_to_ministry(target_email, report_df):
         msg['To'] = target_email
         msg['Subject'] = f"🏛️ Ministry Official Status Report: {datetime.datetime.now().strftime('%B %Y')}"
         
-        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් නිල Excel (.xlsx) වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
+        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් ბෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් නිල Excel (.xlsx) වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
         excel_buffer = io.BytesIO()
@@ -441,8 +441,7 @@ with tabs[1]:
             df_full_breakdown = df_leaderboard.sort_values(by="Usage (Minutes)", ascending=False)[["Census No", "Piriven Name", "District", "Zone", "Usage (Minutes)", "Formatted Runtime"]]
             st.dataframe(df_full_breakdown, use_container_width=True)
             
-            # 💡 [නව නිවැරදි කිරීම - පිරිසිදු EXCEL ඩවුන්ලෝඩ් බොත්තම] 
-            # Leaderboard Breakdown වගුව සෘජුවම සැබෑ Excel (.xlsx) ලේඛනයක් ලෙසම බාගත කරගැනීමේ පද්ධතිය
+            # 💡 [සියලුම ඩවුන්ලෝඩ් එක්සෙල් මාදිලියට සැකසීම - 1/3]
             lead_buffer = io.BytesIO()
             with pd.ExcelWriter(lead_buffer, engine='openpyxl') as lead_writer:
                 df_full_breakdown.to_excel(lead_writer, index=False, sheet_name="Leaderboard")
@@ -461,6 +460,20 @@ with tabs[1]:
         df_zero = df_leaderboard[df_leaderboard["Usage (Minutes)"] == 0][["Census No", "Piriven Name", "District", "Zone", "Status"]]
         if not df_zero.empty:
             st.dataframe(df_zero.style.set_properties(**{'background-color': '#fef2f2', 'color': '#991b1b'}), use_container_width=True)
+            
+            # 💡 [සියලුම ඩවුන්ලೋඩ් එක්සෙල් මාදිලියට සැකසීම - 2/3 - අතිරේක වටිනාකම]
+            zero_buffer = io.BytesIO()
+            with pd.ExcelWriter(zero_buffer, engine='openpyxl') as zero_writer:
+                df_zero.to_excel(zero_writer, index=False, sheet_name="Zero Usage Warning")
+            zero_excel_bytes = zero_buffer.getvalue()
+            
+            st.download_button(
+                label="📥 Download Zero Usage Warning List (.xlsx)",
+                data=zero_excel_bytes,
+                file_name=f"Zero_Usage_Warning_{datetime.date.today()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="zero_usage_excel_download_btn"
+            )
         else:
             st.success("🎉 නියමයි! තෝරාගත් කාල සීමාව තුළ සියලුම පිරිවෙන් ස්මාර්ට් බෝඩ් සක්‍රිය මට්ටමින් පවතී.")
             
@@ -476,6 +489,7 @@ with tabs[1]:
         
     df_summary_download = pd.DataFrame(summary_report_data)
     
+    # 💡 [සියලුම ඩවුන්ලෝඩ් එක්සෙල් මාදිලියට සැකසීම - 3/3]
     dl_buffer = io.BytesIO()
     with pd.ExcelWriter(dl_buffer, engine='openpyxl') as dl_writer:
         df_summary_download.to_excel(dl_writer, index=False, sheet_name="Summary")
@@ -528,6 +542,20 @@ with tabs[1]:
         subset=["Status"]
     )
     st.dataframe(styled_df, use_container_width=True)
+    
+    # 💡 [අතිරේක වටිනාකම - Device Registry සඳහාත් නිල Excel ඩවුන්ලෝඩ් බොත්තමක් එක් කිරීම]
+    reg_buffer = io.BytesIO()
+    with pd.ExcelWriter(reg_buffer, engine='openpyxl') as reg_writer:
+        df_table_registry.drop(columns=["Latitude", "Longitude", "Filtered Usage (Hours)", "Monthly Usage (Hours)", "Usage (Minutes)"], errors="ignore").to_excel(reg_writer, index=False, sheet_name="Device Registry")
+    reg_excel_bytes = reg_buffer.getvalue()
+    
+    st.download_button(
+        label="📥 Download Device Registry Table (.xlsx)",
+        data=reg_excel_bytes,
+        file_name=f"Device_Registry_{datetime.date.today()}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="registry_excel_download_btn"
+    )
 
 map_center = [7.8731, 80.7718]
 map_zoom = 8
@@ -760,7 +788,7 @@ footer_html = f"""
             </td>
             <td style="width: 60%; text-align: center; border-top: none; border-bottom: none; border-left: 2px solid #475569; border-right: 2px solid #475569; background-color: transparent; padding: 10px 20px; vertical-align: middle;">
                 <p style="margin: 0; font-size: 16px; font-weight: bold; color: #60a5fa; letter-spacing: 0.5px;">Piriven Development Branch</p>
-                <p style="margin: 6px 0 0 0; font-size: 13px; color: #cbd5e1;">📧 Email: <a href="mailto:info.pirivendevelopment@gmail.com" style="color: #60a5fa; text-decoration: none; font-weight: bold;">info.pirivendevelopment@gmail.com</a></p>
+                <p style="margin: 6px 0 0 0; font-size: 13px; color: #cbd5e1;">📧 Email: <a href='mailto:info.pirivendevelopment@gmail.com' style='color: #60a5fa; text-decoration: none; font-weight: bold;'>info.pirivendevelopment@gmail.com</a></p>
             </td>
             <td style="width: 20%; text-align: left; border: none; background-color: transparent; padding: 10px; vertical-align: middle;">
                 {"<img src='" + piriven_img_base64 + "' style='height: 60px; max-width: 100%; object-fit: contain;'>" if piriven_img_base64 else ""}
