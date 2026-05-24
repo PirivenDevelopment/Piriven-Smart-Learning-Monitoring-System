@@ -34,9 +34,8 @@ def make_hashes(password):
 
 # 💡 Cloud (Firebase) එකෙන් පරිශීලකයා පරික්ෂා කිරීම සහ නව පරිශීලකයන් ඇතුළත් කිරීමේ ස්මාර්ට් ශ්‍රිත
 def check_admin_login(user, pwd):
-    # 💡 [විසඳුම] Firebase හි දත්ත නොමැති වුවද සෘජුවම ලොග් විය හැකි නිල Master Super Admin ගිණුම
     if user == "admin" and make_hashes(pwd) == "7757ee92a17058be91a134bf47738f711202e864ee91d8b7b25e11f7c32bf17b":
-        st.session_state["user_role"] = "super_admin"  # Super Admin බලතල ලබා දීම
+        st.session_state["user_role"] = "super_admin"  
         return True
         
     try:
@@ -44,7 +43,7 @@ def check_admin_login(user, pwd):
         if res.status_code == 200 and res.json():
             db_pwd_hash = res.json().get("password_hash")
             if make_hashes(pwd) == db_pwd_hash:
-                st.session_state["user_role"] = "standard_admin"  # Standard Admin බලතල ලබා දීම
+                st.session_state["user_role"] = "standard_admin"  
                 return True
     except: pass
     return False
@@ -134,13 +133,12 @@ if "user_role" not in st.session_state:
 if "current_user" not in st.session_state:
     st.session_state["current_user"] = ""
 
-# --- 🔐 LOGIN & USER CREATION INTERFACE (පළමු වර පිවිසෙන තිරය) ---
+# --- 🔐 LOGIN & USER CREATION INTERFACE ---
 if not st.session_state["logged_in"]:
     st.markdown("<h2 style='text-align: center; color: #1a365d;'>🏛️ Ministry of Education - Sri Lanka</h2>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align: center; color: #475569;'>Piriven Smart Board Central Monitoring Control Center</h4>", unsafe_allow_html=True)
     st.write("---")
     
-    # 💡 [නව විශේෂාංගය] ලොග් වීමට පෙර තිරය මත Sign In සහ Sign Up වෙන් වෙන් වශයෙන්Tabs දෙකක් ලෙස පෙන්වීම
     auth_tabs = st.tabs(["🔒 Admin Sign In (ඇතුළු වීමේ පැනලය)", "📝 Create Admin Account (නව ගිණුමක් සෑදීම)"])
     
     with auth_tabs[0]:
@@ -157,7 +155,7 @@ if not st.session_state["logged_in"]:
                     st.success("✅ Login Successful! Loading dashboard...")
                     st.rerun()
                 else:
-                    st.error("❌ වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්! කරුණාකර නැවත උත්සාහ කරන්න.")
+                    st.error("❌ වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්!")
                     
     with auth_tabs[1]:
         col_s1, col_s2, col_s3 = st.columns([1, 2, 1])
@@ -170,7 +168,7 @@ if not st.session_state["logged_in"]:
             
             if st.button("📤 CREATE OFFICIAL ACCOUNT"):
                 if not new_username or not new_password:
-                    st.warning("⚠️ කරුණාකර පරිශීලක නාමය සහ මුරපදය ඇතුළත් කරන්න.")
+                    st.warning("⚠️ කරුණාකර සියලු දත්ත ඇතුළත් කරන්න.")
                 elif new_password != confirm_password:
                     st.error("❌ මුරපද දෙක එකිනෙකට ගැලපෙන්නේ නැත!")
                 else:
@@ -178,9 +176,9 @@ if not st.session_state["logged_in"]:
                     if status == "success":
                         st.success(f"✅ User Account '{new_username}' සාර්ථකව සාදන ලදී! දැන් ඔබට 'Sign In' පැනලයෙන් ඇතුළු විය හැක.")
                     elif status == "exists":
-                        st.error("⚠️ මෙම පරිශීලක නාමය දැනටමත් පද්ධතියේ පවතී. වෙනත් නමක් භාවිත කරන්න.")
+                        st.error("⚠️ මෙම පරිශීලක නාමය දැනටමත් පවතී.")
                     else:
-                        st.error("❌ Cloud සර්වර් දෝෂයකි. කරුණාකර පසුව උත්සාහ කරන්න.")
+                        st.error("❌ Cloud සර්වර් දෝෂයකි.")
     st.stop()
 
 # --- 🏛️ MAIN DASHBOARD INTERFACE (LOGIN වූ පසු පමණක් දර්ශනය වේ) ---
@@ -350,13 +348,14 @@ with tabs[1]:
     
     srilanka_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).date()
     filtered_census_nos = df_filtered["Census No"].astype(str).tolist()
+    all_island_census_nos = df_usage["Census No"].astype(str).tolist()
     
     total_active_devices = 0
     total_live_students = 0
     total_historical_student_impact = 0  
     total_filtered_usage_hours = 0.0
     app_hours_dict = {}
-    piriven_time_sum_dict = {c: 0.0 for c in filtered_census_nos}
+    piriven_time_sum_dict = {c: 0.0 for c in all_island_census_nos} # ලංකාවේම අය වෙනුවෙන් මුලින්ම හිස්ව තැබීම
     
     for c_no in filtered_census_nos:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
@@ -384,7 +383,8 @@ with tabs[1]:
     try:
         res_apps = requests.get(f"{FIREBASE_URL}software_analytics.json").json()
         if res_apps:
-            for c_no in filtered_census_nos:
+            # 💡 Leaderboard එක දිස්ත්‍රික්කයට පමණක් සීමා නොකර මුළු ලංකාවෙන්ම සෑදීමට සියලුම පිරිවෙන් ලොග් කියවීම
+            for c_no in all_island_census_nos:
                 if c_no in res_apps and isinstance(res_apps[c_no], dict):
                     for date_str, apps_data in res_apps[c_no].items():
                         try: log_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -399,9 +399,11 @@ with tabs[1]:
                         if is_valid and isinstance(apps_data, dict):
                             for app_name, minutes in apps_data.items():
                                 hours_val = round(minutes / 60.0, 2)
-                                app_hours_dict[app_name] = app_hours_dict.get(app_name, 0.0) + hours_val
                                 piriven_time_sum_dict[c_no] += hours_val
-                                total_filtered_usage_hours += hours_val
+                                # පෙරහනට අදාළ එකඟතාවය පමණක් ඇප් metric එකට එකතු කිරීම
+                                if c_no in filtered_census_nos:
+                                    app_hours_dict[app_name] = app_hours_dict.get(app_name, 0.0) + hours_val
+                                    total_filtered_usage_hours += hours_val
     except: pass
 
     display_title = "Selected Piriven" if selected_piriven != "All Piriven" else "All Island"
@@ -415,6 +417,31 @@ with tabs[1]:
     c_middle.metric("🟢 Active Devices Right Now", total_active_devices)
     c_right.metric("👨‍🎓 Live Students Count Now", total_live_students) 
     c_cum.metric("🏛️ Total Cumulative Student Impact", f"{total_historical_student_impact} Students")
+    st.write("---")
+
+    # 💡 [නව විශේෂාංගය] GAMIFIED LEADERBOARD INTERFACE
+    st.markdown(f"### 🏆 Piriven Performance Leaderboard ({clean_time_label})")
+    df_leaderboard = df_filtered.copy()
+    df_leaderboard["Usage (Minutes)"] = [int(round(piriven_time_sum_dict.get(str(row["Census No"]).strip(), 0.0) * 60)) for i, row in df_leaderboard.iterrows()]
+    
+    col_lead1, col_lead2 = st.columns(2)
+    with col_lead1:
+        st.markdown("**⭐ Top 10 Most Active Smart Boards (වැඩිම භාවිතයක් සහිත පිරිවෙන් 10)**")
+        df_top10 = df_leaderboard.sort_values(by="Usage (Minutes)", ascending=False).head(10)
+        if df_top10["Usage (Minutes)"].sum() > 0:
+            st.bar_chart(df_top10.set_index("Piriven Name")["Usage (Minutes)"])
+        else:
+            st.info("No active app records found to display Top 10.")
+            
+    with col_lead2:
+        st.markdown("**🔴 Zero Usage Warning List (භාවිතය 0%ක් වූ අවදානම් පිරිවෙන් ලැයිස්තුව)**")
+        df_zero = df_leaderboard[df_leaderboard["Usage (Minutes)"] == 0][["Census No", "Piriven Name", "District", "Zone", "Status"]]
+        if not df_zero.empty:
+            # වගුව ඉතාමත් පිරිසිදුව රතු පැහැයෙන් Highlight කර පෙන්වීම
+            st.dataframe(df_zero.style.set_properties(**{'background-color': '#fef2f2', 'color': '#991b1b'}), use_container_width=True)
+        else:
+            st.success("🎉 නියමයි! තෝරාගත් කාල සීමාව තුළ සියලුම පිරිවෙන් ස්මාර්ට් බෝඩ් සක්‍රිය මට්ටමින් පවතී.")
+            
     st.write("---")
 
     summary_report_data = {
@@ -467,7 +494,7 @@ with tabs[1]:
     df_table_registry = df_filtered.copy()
     df_table_registry["Monthly Usage (Formatted)"] = df_table_registry["Filtered Usage (Hours)"].apply(convert_hours_to_hm_string)
     
-    columns_to_drop = ["Latitude", "Longitude", "Filtered Usage (Hours)", "Monthly Usage (Hours)"]
+    columns_to_drop = ["Latitude", "Longitude", "Filtered Usage (Hours)", "Monthly Usage (Hours)", "Usage (Minutes)"]
     styled_df = df_table_registry.drop(columns=columns_to_drop, errors="ignore").style.map(
         lambda v: "background-color: #d1fae5; color: #065f46; font-weight: bold;" if v == "Active" else ("background-color: #fee2e2; color: #991b1b; font-weight: bold;" if v == "Offline" else ""),
         subset=["Status"]
@@ -620,7 +647,7 @@ with tabs[2]:
         else: st.info("No reported tickets found.")
     except Exception as e: st.error(f"Error loading tickets: {e}")
 
-# --- 📝 CREATE USERS PANEL INTERFACE (👑 SUPER ADMIN ට පමණක් පෙනේ) ---
+# --- 📝 CREATE USERS PANEL INTERFACE ---
 if st.session_state["user_role"] == "super_admin":
     with tabs[3]:
         col_s1, col_s2, col_s3 = st.columns([1, 2, 1])
