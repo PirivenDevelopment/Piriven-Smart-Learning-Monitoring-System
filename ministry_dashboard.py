@@ -79,11 +79,11 @@ def convert_hours_to_hm_string(decimal_hours):
     except:
         return "0h : 00m"
 
-# 💡 [යාවත්කාලීන] CSV වෙනුවට සැබෑ පිරිසිදු EXCEL (XLSX) ගොනුවක් සාදා ඊමේල් කරන නව එන්ජිම
+# 💡 CSV වෙනුවට සැබෑ පිරිසිදු EXCEL (XLSX) ගොනුවක් සාදා ඊමේල් කරන එන්ජිම
 def email_monthly_report_to_ministry(target_email, report_df):
     try:
         from_email = "info.pirivendevelopment@gmail.com"  
-        password = "your-secure-app-password"  # 💡 ඔබේ Gmail App Password එක මෙතැනට දමන්න
+        password = "your-secure-app-password"  
         
         msg = MIMEMultipart()
         msg['From'] = from_email
@@ -93,7 +93,6 @@ def email_monthly_report_to_ministry(target_email, report_df):
         body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් නිල Excel (.xlsx) වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
-        # Memory එක ඇතුළත සැබෑ Excel බයිට්ස් (XLSX Bytes) නිර්මාණය කිරීම
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             report_df.to_excel(writer, index=False, sheet_name="Usage Report")
@@ -187,7 +186,7 @@ if not st.session_state["logged_in"]:
                         st.error("❌ Cloud සර්වර් දෝෂයකි.")
     st.stop()
 
-# --- 🏛️ MAIN DASHBOARD INTERFACE (LOGIN වූ පසු පමණක් දර්ශනය වේ) ---
+# --- 🏛️ MAIN DASHBOARD INTERFACE ---
 st.markdown("""
     <style>
     .main { background-color: #f8fafc; }
@@ -438,7 +437,7 @@ with tabs[1]:
         else:
             st.info("No active app records found to display Top 10.")
             
-        with St.expander("🔍 Click to View Full Leaderboard Breakdown (සමස්ත පිරිවෙන් ප්‍රමුඛතා ලැයිස්තුව විස්තරාත්මකව බලන්න)"):
+        with st.expander("🔍 Click to View Full Leaderboard Breakdown (සමස්ත පිරිවෙන් ප්‍රමුඛතා ලැයිස්තුව විස්තරාත්මකව බලන්න)"):
             df_full_breakdown = df_leaderboard.sort_values(by="Usage (Minutes)", ascending=False)[["Census No", "Piriven Name", "District", "Zone", "Usage (Minutes)", "Formatted Runtime"]]
             st.dataframe(df_full_breakdown, use_container_width=True)
             
@@ -462,7 +461,6 @@ with tabs[1]:
         
     df_summary_download = pd.DataFrame(summary_report_data)
     
-    # 💡 [යාවත්කාලීන] බාගත වන (Download) වාර්තාව ද සෘජුවම EXCEL (.xlsx) ගොනුවක් බවට පත් කිරීම
     dl_buffer = io.BytesIO()
     with pd.ExcelWriter(dl_buffer, engine='openpyxl') as dl_writer:
         df_summary_download.to_excel(dl_writer, index=False, sheet_name="Summary")
@@ -555,6 +553,8 @@ with tabs[0]:
                         else: icon_color = "orange"
                         
                         adv_spec = dev_info.get("spec_advanced", {})
+                        
+                        # 💡 [නිවැරදි කිරීම] Syntax Error එක ඉවත් කර සකස් කළ දෝෂ රහිත පේළිය
                         popup_html = f"""
                         <div style='font-family: sans-serif; font-size: 12px; line-height: 1.5; min-width: 270px;'>
                             <h3 style='margin: 0 0 5px 0; color: #1e293b;'>🏛️ {r['Piriven Name']}</h3>
@@ -567,7 +567,7 @@ with tabs[0]:
                                 <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Chipset</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('chipset', 'N/A')}</td></tr>
                                 <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Processor</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('processor', 'N/A')}</td></tr>
                                 <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>Frequency / L3 Cache</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('frequency', 'N/A')} / {adv_spec.get('cache', 'N/A')}</td></tr>
-                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>RAM / Storage</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('ram', 'N/A')} / {harddisk', 'N/A')}</td></tr>
+                                <tr style='background-color: #f1f5f9;'><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>RAM / Storage</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('ram', 'N/A')} / {adv_spec.get('harddisk', 'N/A')}</td></tr>
                                 <tr><td style='padding: 4px; border: 1px solid #cbd5e1;'><b>OS Version</b></td><td style='padding: 4px; border: 1px solid #cbd5e1;'>{adv_spec.get('os', 'N/A')}</td></tr>
                             </table>
                         </div>
@@ -686,7 +686,7 @@ if st.session_state["user_role"] == "super_admin":
                     else:
                         st.error("❌ Cloud සර්වර් දෝෂයකි.")
 
-# 📧 [යාවත්කාලීන] සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කිරීමේ පැනලය (XLSX සක්‍රිය කරන ලදී)
+# 📧 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කිරීමේ පැනලය
 st.write("---")
 st.subheader("📧 Automated Ministry Email Support Desk")
 st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
