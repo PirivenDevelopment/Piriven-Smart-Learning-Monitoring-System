@@ -89,7 +89,7 @@ def email_monthly_report_to_ministry(target_email, report_df):
         msg['To'] = target_email
         msg['Subject'] = f"🏛️ Ministry Official Status Report: {datetime.datetime.now().strftime('%B %Y')}"
         
-        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත পිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් CSV වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
+        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් CSV වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
         csv_data = report_df.to_csv(index=False, encoding='utf-8-sig')
@@ -355,7 +355,7 @@ with tabs[1]:
     total_historical_student_impact = 0  
     total_filtered_usage_hours = 0.0
     app_hours_dict = {}
-    piriven_time_sum_dict = {c: 0.0 for c in all_island_census_nos} # ලංකාවේම අය වෙනුවෙන් මුලින්ම හිස්ව තැබීම
+    piriven_time_sum_dict = {c: 0.0 for c in all_island_census_nos}
     
     for c_no in filtered_census_nos:
         if c_no in live_boards_data and isinstance(live_boards_data[c_no], dict):
@@ -383,7 +383,6 @@ with tabs[1]:
     try:
         res_apps = requests.get(f"{FIREBASE_URL}software_analytics.json").json()
         if res_apps:
-            # 💡 Leaderboard එක දිස්ත්‍රික්කයට පමණක් සීමා නොකර මුළු ලංකාවෙන්ම සෑදීමට සියලුම පිරිවෙන් ලොග් කියවීම
             for c_no in all_island_census_nos:
                 if c_no in res_apps and isinstance(res_apps[c_no], dict):
                     for date_str, apps_data in res_apps[c_no].items():
@@ -400,7 +399,6 @@ with tabs[1]:
                             for app_name, minutes in apps_data.items():
                                 hours_val = round(minutes / 60.0, 2)
                                 piriven_time_sum_dict[c_no] += hours_val
-                                # පෙරහනට අදාළ එකඟතාවය පමණක් ඇප් metric එකට එකතු කිරීම
                                 if c_no in filtered_census_nos:
                                     app_hours_dict[app_name] = app_hours_dict.get(app_name, 0.0) + hours_val
                                     total_filtered_usage_hours += hours_val
@@ -419,10 +417,11 @@ with tabs[1]:
     c_cum.metric("🏛️ Total Cumulative Student Impact", f"{total_historical_student_impact} Students")
     st.write("---")
 
-    # 💡 [නව විශේෂාංගය] GAMIFIED LEADERBOARD INTERFACE
+    # 💡 [නව විශේෂාංගය] විස්තරාත්මක බොත්තම සහිත LEADERBOARD ENGINE
     st.markdown(f"### 🏆 Piriven Performance Leaderboard ({clean_time_label})")
     df_leaderboard = df_filtered.copy()
     df_leaderboard["Usage (Minutes)"] = [int(round(piriven_time_sum_dict.get(str(row["Census No"]).strip(), 0.0) * 60)) for i, row in df_leaderboard.iterrows()]
+    df_leaderboard["Formatted Runtime"] = [convert_hours_to_hm_string(piriven_time_sum_dict.get(str(row["Census No"]).strip(), 0.0)) for i, row in df_leaderboard.iterrows()]
     
     col_lead1, col_lead2 = st.columns(2)
     with col_lead1:
@@ -433,11 +432,15 @@ with tabs[1]:
         else:
             st.info("No active app records found to display Top 10.")
             
+        # 💡 [නව බොත්තම] සමස්ත පිරිවෙන් දත්ත පිළිවෙළට දිග හැරීමටExpander එකක් භාවිත කිරීම (Smart Button Alternative)
+        with st.expander("🔍 Click to View Full Leaderboard Breakdown (සමස්ත පිරිවෙන් ප්‍රමුඛතා ලැයිස්තුව විස්තරාත්මකව බලන්න)"):
+            df_full_breakdown = df_leaderboard.sort_values(by="Usage (Minutes)", ascending=False)[["Census No", "Piriven Name", "District", "Zone", "Usage (Minutes)", "Formatted Runtime"]]
+            st.dataframe(df_full_breakdown, use_container_width=True)
+            
     with col_lead2:
         st.markdown("**🔴 Zero Usage Warning List (භාවිතය 0%ක් වූ අවදානම් පිරිවෙන් ලැයිස්තුව)**")
         df_zero = df_leaderboard[df_leaderboard["Usage (Minutes)"] == 0][["Census No", "Piriven Name", "District", "Zone", "Status"]]
         if not df_zero.empty:
-            # වගුව ඉතාමත් පිරිසිදුව රතු පැහැයෙන් Highlight කර පෙන්වීම
             st.dataframe(df_zero.style.set_properties(**{'background-color': '#fef2f2', 'color': '#991b1b'}), use_container_width=True)
         else:
             st.success("🎉 නියමයි! තෝරාගත් කාල සීමාව තුළ සියලුම පිරිවෙන් ස්මාර්ට් බෝඩ් සක්‍රිය මට්ටමින් පවතී.")
