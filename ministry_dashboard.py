@@ -9,6 +9,7 @@ import datetime
 import base64
 import os
 import smtplib
+import hashlib                                 # 💡 මුරපද ආරක්ෂිතව කේතාංකනය කිරීමට (SHA-256)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -27,7 +28,46 @@ SRI_LANKA_DISTRICTS = [
     "Monaragala", "Ratnapura", "Kegalle"
 ]
 
-# 💡 දශම පැය ගණන (Decimal Hours) "Xh : Ym" ආකෘතියට පත් කරන ශ්‍රිතය
+# 💡 මුරපදය SHA-256 ක්‍රමයට හරවන ආරක්ෂිත එන්ජිම
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+# 💡 Cloud (Firebase) එකෙන් පරිශීලකයා පරික්ෂා කිරීම සහ නව පරිශීලකයන් ඇතුළත් කිරීමේ ස්මාර්ට් ශ්‍රිත
+def check_admin_login(user, pwd):
+    # 💡 [විසඳුම] Master Admin ගිණුම (Username: admin / Password: moe@piriven123)
+    if user == "admin" and make_hashes(pwd) == "7757ee92a17058be91a134bf47738f711202e864ee91d8b7b25e11f7c32bf17b":
+        return True
+    try:
+        # Firebase එකෙන් අලුතින් සාදපු අනෙකුත් පරිශීලකයන්ගේ දත්ත කියවීම
+        res = requests.get(f"{FIREBASE_URL}system_admins/{user}.json", timeout=4)
+        if res.status_code == 200 and res.json():
+            db_pwd_hash = res.json().get("password_hash")
+            if make_hashes(pwd) == db_pwd_hash:
+                return True
+    except: pass
+    return False
+
+def create_new_admin_user(new_user, new_pwd):
+    try:
+        # පවතින පරිශීලකයෙක්දැයි පරික්ෂා කිරීම
+        check_res = requests.get(f"{FIREBASE_URL}system_admins/{new_user}.json", timeout=3)
+        if check_res.status_code == 200 and check_res.json():
+            return "exists"
+        
+        # ආරක්ෂිතව කේතාංකනය කර දත්ත Firebase එකට ඇතුළත් කිරීම
+        pwd_hash = make_hashes(new_pwd)
+        user_node = {
+            "username": new_user,
+            "password_hash": pwd_hash,
+            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        res = requests.put(f"{FIREBASE_URL}system_admins/{new_user}.json", json=user_node, timeout=3)
+        if res.status_code == 200:
+            return "success"
+    except: pass
+    return "error"
+
+# 💡 දශම පැය ගණන "Xh : Ym" ආකෘතියට පත් කරන ශ්‍රිතය
 def convert_hours_to_hm_string(decimal_hours):
     try:
         hours = int(decimal_hours)
@@ -42,8 +82,8 @@ def convert_hours_to_hm_string(decimal_hours):
 # 💡 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කරන ස්මාර්ට් එන්ජිම
 def email_monthly_report_to_ministry(target_email, report_df):
     try:
-        from_email = "info.pirivendevelopment@gmail.com"  # පද්ධතියේ නිල Gmail ලිපිනය
-        password = "your-secure-app-password"            # 💡 ඔබ සතු Gmail App Password එකක් මෙතනට දමන්න
+        from_email = "info.pirivendevelopment@gmail.com"  
+        password = "your-secure-app-password"  
         
         msg = MIMEMultipart()
         msg['From'] = from_email
@@ -53,7 +93,6 @@ def email_monthly_report_to_ministry(target_email, report_df):
         body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් CSV වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
-        # CSV ගොනුව ඇමුණුමක් ලෙස එකතු කිරීම (Attachment Layer)
         csv_data = report_df.to_csv(index=False, encoding='utf-8-sig')
         part = MIMEBase('application', 'octet-stream')
         part.set_payload(csv_data.encode('utf-8-sig'))
@@ -61,7 +100,6 @@ def email_monthly_report_to_ministry(target_email, report_df):
         part.add_header('Content-Disposition', f"attachment; filename= Monthly_Usage_Report_{datetime.date.today()}.csv")
         msg.attach(part)
         
-        # Secure SMTP Connection
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(from_email, password)
@@ -89,6 +127,59 @@ def process_youtube_link(url_or_id):
 
 st.set_page_config(page_title="Ministry Admin Dashboard", layout="wide")
 
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+# --- 🔐 LOGIN & USER CREATION INTERFACE ---
+if not st.session_state["logged_in"]:
+    st.markdown("<h2 style='text-align: center; color: #1a365d;'>🏛️ Ministry of Education - Sri Lanka</h2>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center; color: #475569;'>Piriven Smart Board Central Monitoring Control Center</h4>", unsafe_allow_html=True)
+    st.write("---")
+    
+    # 💡 [නව විශේෂාංගය] Login සහ Create User සඳහා වෙන් වෙන් වශයෙන් Tabs දෙකක් නිර්මාණය කිරීම
+    login_tab, signup_tab = st.tabs(["🔒 Admin Login Panel", "📝 Create New Admin User Account"])
+    
+    with login_tab:
+        col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+        with col_l2:
+            st.markdown("### 🔐 Admin Authentication Sign In")
+            username = st.text_input("Username (පරිශීලක නාමය):", key="login_user")
+            password = st.text_input("Password (මුරපදය):", type="password", key="login_pwd")
+            
+            if st.button("🔑 LOGIN TO COMMAND CENTER"):
+                if check_admin_login(username, password):
+                    st.session_state["logged_in"] = True
+                    st.success("✅ Login Successful! Loading dashboard...")
+                    st.rerun()
+                else:
+                    st.error("❌ වැරදි පරිශීලක නාමයක් හෝ මුරපදයක්!")
+                    
+    with signup_tab:
+        col_s1, col_s2, col_s3 = st.columns([1, 2, 1])
+        with col_s2:
+            st.markdown("### 📝 Register New Ministry Officer Account")
+            st.info("💡 සටහන: මෙතැනින් සාදන නව ගිණුම්වල දත්ත ස්වයංක්‍රීයවම ආරක්ෂිතව ක්ලවුඩ් (Firebase) එක තුළ තැන්පත් වේ.")
+            new_username = st.text_input("Choose Username (අලුත් නම):", key="sig_user").strip().lower()
+            new_password = st.text_input("Choose Password (අලුත් මුරපදය):", type="password", key="sig_pwd")
+            confirm_password = st.text_input("Confirm Password (මුරපදය නැවත ඇතුළත් කරන්න):", type="password", key="sig_cpwd")
+            
+            if st.button("📤 CREATE OFFICIAL ACCOUNT"):
+                if not new_username or not new_password:
+                    st.warning("⚠️ කරුණාකර පරිශීලක නාමය සහ මුරපදය ඇතුළත් කරන්න.")
+                elif new_password != confirm_password:
+                    st.error("❌ මුරපද දෙක එකිනෙකට ගැලපෙන්නේ නැත!")
+                else:
+                    # ශ්‍රිතය ක්‍රියාත්මක කර ප්‍රතිඵලය බැලීම
+                    status = create_new_admin_user(new_username, new_password)
+                    if status == "success":
+                        st.success(f"✅ User Account '{new_username}' සාර්ථකව සාදන ලදී! දැන් ඔබට Login පැනලයෙන් ඇතුළු විය හැක.")
+                    elif status == "exists":
+                        st.error("⚠️ මෙම පරිශීලක නාමය (Username) දැනටමත් පද්ධතියේ පවතී. වෙනත් නමක් භාවිත කරන්න.")
+                    else:
+                        st.error("❌ Cloud සර්වර් දෝෂයකි. කරුණාකර පසුව උත්සාහ කරන්න.")
+    st.stop()
+
+# --- 🏛️ MAIN DASHBOARD INTERFACE (LOGIN වූ පසු පමණක් දර්ශනය වේ) ---
 st.markdown("""
     <style>
     .main { background-color: #f8fafc; }
@@ -120,6 +211,10 @@ with col_title:
     st.markdown("<h2 style='color: #1a365d; margin-top: -10px;'>🏛️ Ministry of Education - Piriven Division</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color: #4a5568; font-size: 14px; font-weight: bold; margin-top: -15px;'>Central Control, Analytics & Monitoring Dashboard</p>", unsafe_allow_html=True)
 with col_clock:
+    if st.button("🔒 LOGOUT"):
+        st.session_state["logged_in"] = False
+        st.rerun()
+
     st.markdown("<p style='text-align:center; margin-bottom:0px; font-weight:bold; color:#475569; font-size:12px;'>💻 DEVICE TIME</p>", unsafe_allow_html=True)
     clock_html = """
     <div id="clock-span" style="background-color: #1e293b; color: #60a5fa; padding: 8px; border-radius: 8px; text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border: 1px solid #475569;">Loading...</div>
@@ -236,7 +331,6 @@ with tab2:
     )
     st.write("---")
     
-    # 💡 "This" වෙනුවට Week, Month, Year ලේබලය සම්පූර්ණයෙන්ම වෙන් කර ගැනීම
     clean_time_label = time_frame.split(" (")[0]
     
     srilanka_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).date()
@@ -244,7 +338,7 @@ with tab2:
     
     total_active_devices = 0
     total_live_students = 0
-    total_historical_student_impact = 0  # 💡 සමස්ත ඓතිහාසික ශිෂ්‍ය එකතුව ගබඩා කරන විචල්‍යය
+    total_historical_student_impact = 0  
     total_filtered_usage_hours = 0.0
     app_hours_dict = {}
     piriven_time_sum_dict = {c: 0.0 for c in filtered_census_nos}
@@ -257,8 +351,6 @@ with tab2:
             
             if "attendance" in live_boards_data[c_no] and isinstance(live_boards_data[c_no]["attendance"], dict):
                 att_info = live_boards_data[c_no]["attendance"]
-                
-                # 🏛️ සර්වර් එකේ පවතින ඓතිහාසික ශිෂ්‍ය දත්ත (Cumulative Impact) එකතු කිරීම
                 total_historical_student_impact += int(att_info.get("cumulative_student_lessons", 0))
                 
                 if is_device_actually_active(att_info.get("last_captured")):
@@ -300,10 +392,8 @@ with tab2:
     display_title = "Selected Piriven" if selected_piriven != "All Piriven" else "All Island"
     st.markdown(f"#### 🏛️ {display_title} Summary ({clean_time_label})")
     
-    # දශම පැය ගණන "Hours : Minutes" (Xh : Ym) ආකෘතියට හැරවීම
     runtime_string = convert_hours_to_hm_string(total_filtered_usage_hours)
     
-    # 💡 [නිවැරදි කිරීම] තීරු 5ක් සාදා ඓතිහාසික ශිෂ්‍ය එකතුව (Cumulative Impact) ද එක් කරන ලදී
     c_reg, c_left, c_middle, c_right, c_cum = st.columns(5) 
     c_reg.metric("Registered Boards", len(df_filtered))
     c_left.metric(f"⏱️ Total Board Runtime ({clean_time_label})", runtime_string)
@@ -312,7 +402,6 @@ with tab2:
     c_cum.metric("🏛️ Total Cumulative Student Impact", f"{total_historical_student_impact} Students")
     st.write("---")
 
-    # 📥 බාගත වන වාර්තාවට ද ඓතිහාසික අගයන් එකතු කිරීම
     summary_report_data = {
         "📊 Parameter": ["Selected Piriven Name", "Census Number", "Time Frame Filtered", "Total Board Runtime", "Active Devices Right Now", "Live Students Count Now", "Total Cumulative Student Impact"],
         "📝 Value": [selected_piriven, df_filtered["Census No"].iloc[0] if selected_piriven != "All Piriven" else "All Island", clean_time_label, runtime_string, total_active_devices, total_live_students, f"{total_historical_student_impact} Students"]
@@ -333,14 +422,12 @@ with tab2:
 
     if not app_hours_dict: app_hours_dict = {"No Logs for this Period": 0.0}
     
-    # 💡 [විසඳුම] ප්‍රස්ථාරයේ අගයද දශම පැය වෙනුවට කෙලින්ම මිනිත්තු (Minutes) වලින් පෙන්වන නව ඩේටාෆ්‍රේම් එක
     chart_minutes_list = [int(round(hrs * 60)) for hrs in app_hours_dict.values()]
     software_chart_data = pd.DataFrame({
         "Software Application": list(app_hours_dict.keys()), 
         "Total Execution (Minutes)": chart_minutes_list
     })
     
-    # වගුවේ පේළි සඳහා "Xh : Ym" ආකෘතිය සකස් කිරීම
     software_table_data = pd.DataFrame({
         "Software Application": list(app_hours_dict.keys()),
         "Total Execution (Formatted)": [convert_hours_to_hm_string(hrs) for hrs in app_hours_dict.values()]
@@ -362,7 +449,6 @@ with tab2:
     st.write("---")
     st.markdown("### 📋 Device Registry & Quick Map Link")
     
-    # Main registry වගුවටද Formatted කාලය ඇතුළත් කිරීම
     df_table_registry = df_filtered.copy()
     df_table_registry["Monthly Usage (Formatted)"] = df_table_registry["Filtered Usage (Hours)"].apply(convert_hours_to_hm_string)
     
@@ -495,7 +581,7 @@ with tab3:
                     chats = det.get("chats", {})
                     if chats:
                         for cid, cmsg in chats.items():
-                            sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 Piriven"
+                            sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 You"
                             st.markdown(f"**{sender}:** {cmsg.get('msg')}  *<small>({cmsg.get('time')[11:16]})</small>*", unsafe_allow_html=True)
                     
                     if det.get('status') == "Pending":
@@ -553,7 +639,6 @@ if st.button("📤 Compilation & Send Monthly Report to Email"):
         
         df_monthly_master = pd.DataFrame(compiled_list)
         
-        # ඊමේල් එන්ජිම ක්‍රියාත්මක කිරීම
         success = email_monthly_report_to_ministry(recipient_email, df_monthly_master)
         if success:
             st.success(f"✅ {datetime.datetime.now().strftime('%B %Y')} මාසික ප්‍රගති වාර්තාව සාර්ථකව {recipient_email} වෙත ඊමේල් කරන ලදී!")
