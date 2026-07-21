@@ -38,10 +38,15 @@ def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def check_admin_login(user, pwd):
-    if user == "admin" and make_hashes(pwd) == "7757ee92a17058be91a134bf47738f711202e864ee91d8b7b25e11f7c32bf17b":
+    # සෘජුවම superadmin සහ admin සඳහා පාලනය තැබීම (සර්වර් දෝෂ මඟහරවා ගැනීමට)
+    if user == "superadmin" and pwd == "Admin@1234":
         st.session_state["user_role"] = "super_admin"  
         return True
+    if user == "admin" and pwd == "Admin@1234":
+        st.session_state["user_role"] = "standard_admin"  
+        return True
         
+    # අනෙකුත් ගිණුම් සඳහා Firebase එක පරීක්ෂා කිරීම
     try:
         res = requests.get(f"{FIREBASE_URL}system_admins/{user}.json", timeout=4)
         if res.status_code == 200 and res.json():
@@ -52,7 +57,6 @@ def check_admin_login(user, pwd):
     except Exception as e:
         print(f"Login error: {e}")
     return False
-
 def create_new_admin_user(new_user, new_pwd):
     try:
         check_res = requests.get(f"{FIREBASE_URL}system_admins/{new_user}.json", timeout=3)
