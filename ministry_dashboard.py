@@ -9,8 +9,8 @@ import datetime
 import base64
 import os
 import smtplib
-import hashlib                                 # 💡 මුරපද ආරක්ෂිතව කේතාංකනය කිරීමට (SHA-256)
-import io                                      # 💡 Memory එක ඇතුළත Excel ෆයිල් සෑදීමට
+import hashlib                               # 💡 මුරපද ආරක්ෂිතව කේතාංකනය කිරීමට (SHA-256)
+import io                                    # 💡 Memory එක ඇතුළත Excel ෆයිල් සෑදීමට
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -19,26 +19,24 @@ from urllib.parse import urlparse, parse_qs
 
 # ⚠️ Firebase API URL
 FIREBASE_URL = "https://pirivensmartboardmonitoring-default-rtdb.asia-southeast1.firebasedatabase.app/"
-# මෙම ශ්‍රිතය ඔබේ කේතයේ ඉහළින්ම අලුතින් එක් කරන්න
+
 def get_excel_bytes(df):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Report')
     return output.getvalue()
-# ලංකාවේ නිල දිස්ත්‍රික්ක 25
+
 SRI_LANKA_DISTRICTS = [
     "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya", 
     "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar", 
     "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara", "Trincomalee", 
-    "Kurunegala", "Puttalam", "Anuradhapura", "Polonovaruwa", "Badulla", 
+    "Kurunegala", "Puttalam", "Anuradhapura", "Polonnaruwa", "Badulla", 
     "Monaragala", "Ratnapura", "Kegalle"
 ]
 
-# 💡 මුරපදය SHA-256 ක්‍රමයට හරවන ආරක්ෂිත එන්ජිම
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
-# 💡 Cloud (Firebase) එකෙන් පරිශීලකයා පරික්ෂා කිරීම සහ නව පරිශීලකයන් ඇතුළත් කිරීමේ ස්මාර්ට් ශ්‍රිත
 def check_admin_login(user, pwd):
     if user == "admin" and make_hashes(pwd) == "7757ee92a17058be91a134bf47738f711202e864ee91d8b7b25e11f7c32bf17b":
         st.session_state["user_role"] = "super_admin"  
@@ -51,7 +49,8 @@ def check_admin_login(user, pwd):
             if make_hashes(pwd) == db_pwd_hash:
                 st.session_state["user_role"] = "standard_admin"  
                 return True
-    except: pass
+    except Exception as e:
+        print(f"Login error: {e}")
     return False
 
 def create_new_admin_user(new_user, new_pwd):
@@ -69,10 +68,10 @@ def create_new_admin_user(new_user, new_pwd):
         res = requests.put(f"{FIREBASE_URL}system_admins/{new_user}.json", json=user_node, timeout=3)
         if res.status_code == 200:
             return "success"
-    except: pass
+    except Exception as e:
+        print(f"Create user error: {e}")
     return "error"
 
-# 💡 දශම පැය ගණන "Xh : Ym" ආකෘතියට පත් කරන ශ්‍රිතය
 def convert_hours_to_hm_string(decimal_hours):
     try:
         hours = int(decimal_hours)
@@ -84,7 +83,6 @@ def convert_hours_to_hm_string(decimal_hours):
     except:
         return "0h : 00m"
 
-# 💡 CSV වෙනුවට සැබෑ පිරිසිදු EXCEL (XLSX) ගොනුවක් සාදා ඊමේල් කරන එන්ජිම
 def email_monthly_report_to_ministry(target_email, report_df):
     try:
         from_email = "info.pirivendevelopment@gmail.com"  
@@ -95,7 +93,7 @@ def email_monthly_report_to_ministry(target_email, report_df):
         msg['To'] = target_email
         msg['Subject'] = f"🏛️ Ministry Official Status Report: {datetime.datetime.now().strftime('%B %Y')}"
         
-        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් ბෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් නිල Excel (.xlsx) වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
+        body = f"ආයුබෝවන්,\n\n{datetime.datetime.now().strftime('%B %Y')} මාසයට අදාළව ශ්‍රී ලංකාවේ සමස්ත පිරිවෙන් ස්මාර්ට් බෝඩ් පද්ධති භාවිතය සහ සජීවී ශිෂ්‍ය සහභාගීත්ව දත්ත ඇතුළත් නිල Excel (.xlsx) වාර්තාව මෙයට අමුණා ඇත.\n\nමෙය පද්ධතිය මඟින් ස්වයංක්‍රීයව ජනනය කරන ලද නිල වාර්තාවකි.\n\nPiriven Development Branch\nMinistry of Education, Sri Lanka."
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
         excel_buffer = io.BytesIO()
@@ -259,12 +257,10 @@ try:
     if res2.status_code == 200: cloud_excel_data = res2.json()
 except: pass
 
-# --- 📁 DATA SOURCE SETUP SIDEBAR (👑 SUPER ADMIN ට විතරක් පෙනේ) ---
 st.sidebar.header("📁 Data Source Setup")
+df_usage = None
 if st.session_state["user_role"] == "super_admin":
     uploaded_file = st.sidebar.file_uploader("Upload Piriven Excel Registry (.xlsx)", type=["xlsx"])
-    df_usage = None
-
     if uploaded_file:
         try:
             df_raw = pd.read_excel(uploaded_file)
@@ -335,7 +331,7 @@ pir_list = ["All Piriven"] + sorted(df_step1["Piriven Name"].unique().tolist())
 selected_piriven = st.sidebar.selectbox("Select Piriven Name:", pir_list)
 df_filtered = df_step1[df_step1["Piriven Name"] == selected_piriven] if selected_piriven != "All Piriven" else df_step1.copy()
 
-# Tabs List
+# Tabs List Setup
 tabs_list = ["🗺️ Live Map & Remote Control", "📊 Analytics & Usage Stats", "🛠️ Support Tickets & Live Chat"]
 if st.session_state["user_role"] == "super_admin":
     tabs_list.append("📝 Create Users (පාලන බලතල)")
@@ -427,7 +423,6 @@ with tabs[1]:
     c_cum.metric("🏛️ Total Cumulative Student Impact", f"{total_historical_student_impact} Students")
     st.write("---")
 
-    # GAMIFIED LEADERBOARD INTERFACE
     st.markdown(f"### 🏆 Piriven Performance Leaderboard ({clean_time_label})")
     df_leaderboard = df_filtered.copy()
     df_leaderboard["Usage (Minutes)"] = [int(round(piriven_time_sum_dict.get(str(row["Census No"]).strip(), 0.0) * 60)) for i, row in df_leaderboard.iterrows()]
@@ -442,11 +437,10 @@ with tabs[1]:
         else:
             st.info("No active app records found to display Top 10.")
             
-        with st.expander("🔍 Click to View Full Leaderboard Breakdown (සමස්ත පිරිවෙන් ප්‍රමුඛතා ලැයිස්තුව විස්තරාත්මකව බලන්න)"):
+        with st.expander("🔍 Click to View Full Leaderboard Breakdown"):
             df_full_breakdown = df_leaderboard.sort_values(by="Usage (Minutes)", ascending=False)[["Census No", "Piriven Name", "District", "Zone", "Usage (Minutes)", "Formatted Runtime"]]
             st.dataframe(df_full_breakdown, use_container_width=True)
             
-            # 💡 [සියලුම ඩවුන්ලෝඩ් එක්සෙල් මාදිලියට සැකසීම - 1/3]
             lead_buffer = io.BytesIO()
             with pd.ExcelWriter(lead_buffer, engine='openpyxl') as lead_writer:
                 df_full_breakdown.to_excel(lead_writer, index=False, sheet_name="Leaderboard")
@@ -466,7 +460,6 @@ with tabs[1]:
         if not df_zero.empty:
             st.dataframe(df_zero.style.set_properties(**{'background-color': '#fef2f2', 'color': '#991b1b'}), use_container_width=True)
             
-            # 💡 [සියලුම ඩවුන්ලೋඩ් එක්සෙල් මාදිලියට සැකසීම - 2/3 - අතිරේක වටිනාකම]
             zero_buffer = io.BytesIO()
             with pd.ExcelWriter(zero_buffer, engine='openpyxl') as zero_writer:
                 df_zero.to_excel(zero_writer, index=False, sheet_name="Zero Usage Warning")
@@ -494,16 +487,15 @@ with tabs[1]:
         
     df_summary_download = pd.DataFrame(summary_report_data)
     
-    # 💡 [සියලුම ඩවුන්ලෝඩ් එක්සෙල් මාදිලියට සැකසීම - 3/3]
     dl_buffer = io.BytesIO()
     with pd.ExcelWriter(dl_buffer, engine='openpyxl') as dl_writer:
         df_summary_download.to_excel(dl_writer, index=False, sheet_name="Summary")
     dl_excel_bytes = dl_buffer.getvalue()
 
     st.download_button(
-        label=f"📥 Download {selected_piriven.split(',')[0]} Summary Analytics Excel Report (.xlsx)",
+        label=f"📥 Download Summary Analytics Excel Report (.xlsx)",
         data=dl_excel_bytes,
-        file_name=f"Piriven_Report_{df_filtered['Census No'].iloc[0] if selected_piriven != 'All Piriven' else 'All'}_{datetime.date.today()}.xlsx",
+        file_name=f"Piriven_Report_{datetime.date.today()}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="summary_excel_download_unique_btn"
     )
@@ -548,7 +540,6 @@ with tabs[1]:
     )
     st.dataframe(styled_df, use_container_width=True)
     
-    # 💡 [අතිරේක වටිනාකම - Device Registry සඳහාත් නිල Excel ඩවුන්ලෝඩ් බොත්තමක් එක් කිරීම]
     reg_buffer = io.BytesIO()
     with pd.ExcelWriter(reg_buffer, engine='openpyxl') as reg_writer:
         df_table_registry.drop(columns=["Latitude", "Longitude", "Filtered Usage (Hours)", "Monthly Usage (Hours)", "Usage (Minutes)"], errors="ignore").to_excel(reg_writer, index=False, sheet_name="Device Registry")
@@ -631,7 +622,7 @@ with tabs[0]:
                     [r["Latitude"], r["Longitude"]], popup=f"🏛️ {r['Piriven Name']}<br>🔴 Status: Offline", 
                     icon=folium.Icon(color="red", icon="remove-sign")
                 ).add_to(m)
-                                      
+                        
         st_folium(m, width=700, height=600, key=f"map_{selected_district}_{selected_piriven}")
 
     with col_ctrl:
@@ -645,7 +636,7 @@ with tabs[0]:
                     st.success(f"✅ Broadcast Successful! Type: {link_data['type'].capitalize()}")
                 except: st.error("❌ Cloud Connection Error.")
             else: st.warning("⚠️ Please paste a YouTube link.")
-                        
+                    
         st.write("---")
         ann_t = st.text_input("Announcement Title:")
         ann_b = st.text_area("Message Body:")
@@ -685,7 +676,7 @@ with tabs[2]:
                     chats = det.get("chats", {})
                     if chats:
                         for cid, cmsg in chats.items():
-                            sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 You"
+                            sender = "🏛️ Ministry" if cmsg.get("sender") == "ministry" else "🏫 Piriven"
                             st.markdown(f"**{sender}:** {cmsg.get('msg')}  *<small>({cmsg.get('time')[11:16]})</small>*", unsafe_allow_html=True)
                     
                     if det.get('status') == "Pending":
@@ -709,18 +700,18 @@ with tabs[2]:
         else: st.info("No reported tickets found.")
     except Exception as e: st.error(f"Error loading tickets: {e}")
 
-# --- 📝 CREATE USERS PANEL INTERFACE ---
-if st.session_state["user_role"] == "super_admin":
+# --- 📝 CREATE USERS PANEL INTERFACE (Super Admin Only) ---
+if st.session_state["user_role"] == "super_admin" and len(tabs) > 3:
     with tabs[3]:
         col_s1, col_s2, col_s3 = st.columns([1, 2, 1])
         with col_s2:
             st.markdown("### 📝 Register New Ministry Officer Account")
-            st.info("💡 සටහන: මෙම පැනලය දර්ශනය වන්නේ Master Super Admin හට පමණි. සාමාන්‍ය නිලධාරීන්ට මෙය දර්ශනය නොවේ.")
-            new_username = st.text_input("Choose Username (අලුත් පරිශීලක නම):", key="sig_user").strip().lower()
-            new_password = st.text_input("Choose Password (අලුත් මුරපදය):", type="password", key="sig_pwd")
-            confirm_password = st.text_input("Confirm Password:", type="password", key="sig_cpwd")
+            st.info("💡 සටහන: මෙම පැනලය දර්ශනය වන්නේ Master Super Admin හට පමණි.")
+            new_username = st.text_input("Choose Username (අලුත් පරිශීලක නම):", key="sig_user_panel").strip().lower()
+            new_password = st.text_input("Choose Password (අලුත් මුරපදය):", type="password", key="sig_pwd_panel")
+            confirm_password = st.text_input("Confirm Password:", type="password", key="sig_cpwd_panel")
             
-            if st.button("📤 CREATE OFFICIAL ACCOUNT"):
+            if st.button("📤 CREATE OFFICIAL ACCOUNT", key="create_officer_btn"):
                 if not new_username or not new_password:
                     st.warning("⚠️ කරුණාකර සියලු විස්තර සපුරන්න.")
                 elif new_password != confirm_password:
@@ -734,7 +725,6 @@ if st.session_state["user_role"] == "super_admin":
                     else:
                         st.error("❌ Cloud සර්වර් දෝෂයකි.")
 
-# 📧 සමස්ත භාවිතය පිළිබඳ මාසික වාර්තාව සෘජුවම ඊමේල් කිරීමේ පැනලය
 st.write("---")
 st.subheader("📧 Automated Ministry Email Support Desk")
 st.markdown("දිවයිනේ සියලුම පිරිවෙන්වල මේ මාසයේ සමස්ත භාවිත දත්ත වාර්තාව නිල ඊමේල් ලිපිනය වෙත සෘජුවම යොමු කරන්න.")
@@ -767,10 +757,9 @@ if st.button("📤 Compilation & Send Monthly Report to Email"):
         except: pass
         
         df_monthly_master = pd.DataFrame(compiled_list)
-        
         success = email_monthly_report_to_ministry(recipient_email, df_monthly_master)
         if success:
-            st.success(f"✅ {datetime.datetime.now().strftime('%B %Y')} මාසික ප්‍රගති වාර්තාව සාර්ථකව {recipient_email} වෙත Excel ලේඛනයක් ලෙස යොමු කරන ලදී!")
+            st.success(f"✅ මාසික ප්‍රගති වාර්තාව සාර්ථකව {recipient_email} වෙත යොමු කරන ලදී!")
 
 # Footer Section
 st.write("---")
